@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+publish/
+publish-*/
+
+# IDE and user settings
+.vs/
+*.user
+*.suo
+
+# Local credentials
+.env
+.env.*
+!.env.example
