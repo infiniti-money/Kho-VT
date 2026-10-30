@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>HISA Quan Ly Kho</AssemblyName>
+    <RootNamespace>HisaWarehouse</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\hisa.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="data\initial_data.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="static\vendor\chart.umd.min.js" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="static\vendor\LICENSE.chartjs.md" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Web\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\hisa_logo.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\hisa.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,59 @@
+<Window x:Class="HisaWarehouse.MovementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Tạo phiếu nhập / xuất kho" Icon="Assets/hisa.ico" Width="970" Height="820" MinWidth="850" MinHeight="700"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip" Background="#F3F6FA" FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style TargetType="TextBlock" x:Key="FieldLabel"><Setter Property="Foreground" Value="#53677F"/><Setter Property="FontSize" Value="10.5"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Margin" Value="0,0,0,5"/></Style>
+        <Style TargetType="TextBox"><Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="#172B45"/><Setter Property="BorderBrush" Value="#DDE5EF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="9,7"/><Setter Property="FontSize" Value="12"/><Setter Property="MinHeight" Value="36"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
+        <Style TargetType="ComboBox"><Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="#172B45"/><Setter Property="BorderBrush" Value="#DDE5EF"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="7,4"/><Setter Property="FontSize" Value="12"/><Setter Property="MinHeight" Value="36"/></Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Border Grid.Row="0" Background="White" BorderBrush="#E3E9F1" BorderThickness="0,0,0,1" Padding="24,18">
+            <StackPanel><TextBlock Text="Lập phiếu kho" Foreground="#172B45" FontSize="20" FontWeight="Bold"/><TextBlock Text="Số dư kho sẽ cập nhật ngay sau khi lưu phiếu." Foreground="#78899E" FontSize="11" Margin="0,4,0,0"/></StackPanel>
+        </Border>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,16">
+            <StackPanel>
+                <Border Background="White" BorderBrush="#E3E9F1" BorderThickness="1" CornerRadius="10" Padding="15" Margin="0,0,0,12">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,12"><TextBlock Text="LOẠI GIAO DỊCH" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="MovementTypeBox" SelectionChanged="MovementType_Changed"><ComboBoxItem Content="Nhập" IsSelected="True"/><ComboBoxItem Content="Xuất"/><ComboBoxItem Content="Điều chuyển"/></ComboBox></StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,8,12"><TextBlock Text="NGÀY GIAO DỊCH" Style="{StaticResource FieldLabel}"/><DatePicker x:Name="DateBox" SelectedDateFormat="Short"/></StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,8,12"><TextBlock Text="KHO NHẬP / KHO XUẤT" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="WarehouseBox"/></StackPanel>
+                        <StackPanel x:Name="ToWarehousePanel" Grid.Row="0" Grid.Column="3" Margin="8,0,0,12" Visibility="Collapsed"><TextBlock Text="KHO NHẬN" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="ToWarehouseBox"/></StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0"><TextBlock Text="SỐ CHỨNG TỪ THAM CHIẾU" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ReferenceBox"/></StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,8,0"><TextBlock x:Name="PartnerLabel" Text="NHÀ CUNG CẤP / NGUỒN" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="PartnerBox" IsEditable="True" IsTextSearchEnabled="True"/></StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="2" Margin="8,0,8,0"><TextBlock Text="NGƯỜI THỰC HIỆN" Style="{StaticResource FieldLabel}"/><TextBox x:Name="OperatorBox"/></StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="3" Margin="8,0,0,0"><TextBlock Text="GHI CHÚ" Style="{StaticResource FieldLabel}"/><TextBox x:Name="NoteBox"/></StackPanel>
+                        <CheckBox x:Name="PendingCheck" Grid.Row="2" Grid.ColumnSpan="4" Content="Lưu phiếu ở trạng thái CHỜ XÁC NHẬN · chưa cập nhật tồn kho" Foreground="#B06C0B" FontSize="11" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                    </Grid>
+                </Border>
+
+                <Border Background="White" BorderBrush="#E3E9F1" BorderThickness="1" CornerRadius="10" Padding="15" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="THÊM VẬT TƯ VÀO PHIẾU" Foreground="#172B45" FontSize="12" FontWeight="Bold" />
+                        <Grid Margin="0,9,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="1.25*"/><ColumnDefinition Width="1.35*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0"><TextBlock Text="QUÉT MÃ SKU / BARCODE" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ScannerBox" KeyDown="Scanner_KeyDown" ToolTip="Đặt con trỏ vào đây và quét mã vạch"/></StackPanel>
+                            <StackPanel Grid.Column="1" Margin="8,0,8,0"><TextBlock Text="HOẶC CHỌN VẬT TƯ" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="ProductBox" IsEditable="True" IsTextSearchEnabled="True" DisplayMemberPath="Name"/></StackPanel>
+                            <StackPanel Grid.Column="2" Width="90" Margin="8,0,8,0"><TextBlock Text="SỐ LƯỢNG" Style="{StaticResource FieldLabel}"/><TextBox x:Name="QuantityBox" Text="1" HorizontalContentAlignment="Right"/></StackPanel>
+                            <Button Grid.Column="3" Content="Thêm dòng" Padding="13,8" Margin="8,16,0,0" Background="#EAF1FF" Foreground="#2463EB" BorderThickness="0" FontWeight="SemiBold" Click="AddLine_Click" />
+                        </Grid>
+                        <TextBlock x:Name="ScannerStatus" Text="Thiết bị quét mã hoạt động như bàn phím. Nhấn Enter sau khi quét." Foreground="#8291A5" FontSize="10" Margin="1,7,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="White" BorderBrush="#E3E9F1" BorderThickness="1" CornerRadius="10" Padding="0" MinHeight="260">
+                    <DockPanel>
+                        <Grid DockPanel.Dock="Top" Margin="15,13,15,9"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="DÒNG HÀNG TRÊN PHIẾU" Foreground="#172B45" FontSize="12" FontWeight="Bold"/><TextBlock x:Name="LineCountText" Text="0 mặt hàng" Foreground="#8291A5" FontSize="10" Margin="0,3,0,0"/></StackPanel><Button Grid.Column="1" Content="Xóa các dòng" Click="ClearLines_Click" Padding="8,5" Background="Transparent" Foreground="#C94343" BorderThickness="0" FontSize="10"/></Grid>
+                        <DataGrid x:Name="LinesGrid" AutoGenerateColumns="False" CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#EDF1F5" RowHeight="39" ColumnHeaderHeight="34" Background="White" BorderThickness="0" Margin="5,0,5,6">
+                            <DataGrid.Columns><DataGridTextColumn Header="MÃ SKU" Binding="{Binding Sku}" Width="105" IsReadOnly="True"/><DataGridTextColumn Header="TÊN VẬT TƯ" Binding="{Binding ItemName}" Width="*" IsReadOnly="True"/><DataGridTextColumn Header="ĐVT" Binding="{Binding Unit}" Width="70" IsReadOnly="True"/><DataGridTextColumn Header="SỐ LƯỢNG" Binding="{Binding Quantity, UpdateSourceTrigger=LostFocus}" Width="115"/><DataGridTemplateColumn Header="" Width="68"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Xóa" Tag="{Binding Sku}" Click="RemoveLine_Click" Foreground="#C94343" Background="Transparent" BorderThickness="0" FontSize="10"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn></DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+        <Border Grid.Row="2" Background="White" BorderBrush="#E3E9F1" BorderThickness="0,1,0,0" Padding="22,13">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="Phiếu được lưu chính thức sẽ xuất hiện trong nhật ký giao dịch." Foreground="#8291A5" FontSize="10" VerticalAlignment="Center"/><StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="Hủy" Padding="16,9" Margin="0,0,9,0" Click="Cancel_Click"/><Button Content="Lưu phiếu" Padding="18,9" Background="#2463EB" Foreground="White" BorderThickness="0" FontWeight="SemiBold" Click="Save_Click"/></StackPanel></Grid>
+        </Border>
+    </Grid>
+</Window>
