@@ -72,7 +72,7 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0" Background="#142840">
+        <Border Grid.Column="0" Background="#10283D">
             <DockPanel LastChildFill="True" Margin="18,22,18,16">
                 <StackPanel DockPanel.Dock="Top">
                     <StackPanel Orientation="Horizontal" Margin="2,2,0,30">
@@ -86,7 +86,7 @@
                     </StackPanel>
 
                     <TextBlock Text="LÀM VIỆC" Foreground="#7188A3" FontSize="10" FontWeight="Bold" Margin="8,0,0,9" />
-                    <Button x:Name="NavDashboard" Style="{StaticResource NavButton}" Click="NavDashboard_Click" Background="#2463EB" Foreground="White">
+                    <Button x:Name="NavDashboard" Style="{StaticResource NavButton}" Click="NavDashboard_Click" Background="#157F86" Foreground="White">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="▦" Width="28" FontSize="16"/><TextBlock Text="Tổng quan" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="NavInventory" Style="{StaticResource NavButton}" Click="NavInventory_Click">
@@ -109,6 +109,10 @@
                     </Button>
                     <Button x:Name="NavReplenishment" Style="{StaticResource NavButton}" Click="NavReplenishment_Click">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="↥" Width="28" FontSize="17"/><TextBlock Text="Đề xuất nhập kho" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
+                    <Button x:Name="NavAi" Style="{StaticResource NavButton}" Click="NavAi_Click"
+                            Background="#194E69" Foreground="#F0FBFF" ToolTip="Trò chuyện Gemini và báo cáo kho">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="✦" Width="28" FontSize="19" Foreground="#7DE6D2"/><TextBlock Text="Trợ lý AI Gemini" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="NavAudit" Style="{StaticResource NavButton}" Click="NavAudit_Click">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="28" FontSize="17"/><TextBlock Text="Nhật ký giao dịch" VerticalAlignment="Center"/></StackPanel>
@@ -200,10 +204,13 @@
                     <Grid Grid.Row="0" Margin="0,0,0,17">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="Tổng quan tồn kho" Foreground="#172B45" FontSize="21" FontWeight="Bold" />
+                            <TextBlock Text="Tổng quan tồn kho" Foreground="#122D45" FontSize="23" FontWeight="Bold" />
                             <TextBlock x:Name="DashboardDateText" Text="Dữ liệu ban đầu từ KHO.xlsx" Foreground="#78899E" FontSize="11" Margin="0,4,0,0" />
                         </StackPanel>
-                        <Button Grid.Column="1" Style="{StaticResource SecondaryButton}" Click="ExportBackup_Click" Content="Xuất bản sao lưu" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource SecondaryButton}" Click="ExportBackup_Click" Content="Xuất bản sao lưu" Margin="0,0,9,0"/>
+                            <Button Style="{StaticResource PrimaryButton}" Click="NavAi_Click" Content="✦  Trợ lý AI"/>
+                        </StackPanel>
                     </Grid>
 
                     <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,16">
