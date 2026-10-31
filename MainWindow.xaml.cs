@@ -569,13 +569,15 @@ public partial class MainWindow : Window
     private async void CheckPrimaryFile_Click(object sender, RoutedEventArgs e)
     {
         var path = PrimaryPathBox.Text.Trim();
+        var writeStatus = WorkbookWriteSafety.Inspect(path);
+        PrimaryWriteStatusText.Text = writeStatus.Message;
         try
         {
             var stocks = PrimaryWorkbookReader.ReadStocks(path);
             var transactions = PrimaryWorkbookReader.ReadTransactions(path);
             State.PrimaryExcelPath = path;
             await PersistAsync(false);
-            ShowToast($"File kho chính hợp lệ: {stocks.Count:N0} mã vật tư và {transactions.Count:N0} giao dịch. Chưa ghi thay đổi vào Excel.");
+            ShowToast($"File kho chính hợp lệ: {stocks.Count:N0} mã vật tư và {transactions.Count:N0} giao dịch. {writeStatus.Message}");
         }
         catch (Exception ex)
         {
