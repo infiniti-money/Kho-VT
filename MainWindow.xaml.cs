@@ -418,7 +418,7 @@ public partial class MainWindow : Window
             // Unwind the explicit request-editor child as well as its parent.
             // Completions receive false, so no unapplied edits get saved.
             while (_currentEmbeddedPage is not null)
-                CompleteEmbeddedPage(_currentEmbeddedPage.Source, false, null);
+                _currentEmbeddedPage.Source.CompleteEmbedded(false);
             open();
         }
         if (mayHaveChanges)
