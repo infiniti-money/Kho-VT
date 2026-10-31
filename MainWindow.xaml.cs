@@ -496,23 +496,66 @@ public partial class MainWindow : Window
         SetNavState();
     }
 
+    private void NavGroup_Expanded(object sender, RoutedEventArgs e)
+    {
+        // Behave like an accordion. Expanding a different group only changes
+        // the menu, not the active work page or any unsaved form.
+        if (!IsLoaded || sender is not Expander opened) return;
+        foreach (var group in new[] { NavGroupStock, NavGroupDocuments, NavGroupReports, NavGroupSystem })
+            if (!ReferenceEquals(group, opened)) group.IsExpanded = false;
+    }
+
     private void SetNavState()
     {
-        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit, NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports, NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment, NavAi, NavPrintTemplates })
+        var activeName = _currentEmbeddedPage?.Source switch
         {
-            var active = button.Name switch
+            QuickSearchWindow => "NavQuickSearch",
+            NegativeStockWindow => "NavNegativeStock",
+            MovementWindow => "NavMovement",
+            PendingMovementsWindow => "NavPending",
+            MaterialRequestsWindow or MaterialRequestEditorWindow => "NavRequests",
+            ReplenishmentWindow => "NavReplenishment",
+            PrintTemplateWindow => "NavPrintTemplates",
+            AiAssistantWindow => "NavAi",
+            DetailedReportsWindow => "NavReports",
+            CatalogsWindow or ManageUnitsWindow => "NavCatalogs",
+            SoftwareInfoWindow => "NavSoftwareInfo",
+            ItemEditorWindow => "NavInventory",
+            ReferenceInventoryWindow => "NavSettings",
+            _ => _currentPage switch
             {
-                "NavDashboard" => _currentPage == "dashboard",
-                "NavInventory" => _currentPage == "inventory",
-                "NavMovement" => _currentPage == "movement",
-                "NavAudit" => _currentPage == "audit",
-                "NavLabels" => _currentPage == "labels",
-                "NavSettings" => _currentPage == "settings",
-                "NavAi" => _currentEmbeddedPage?.Source is AiAssistantWindow,
-                _ => false
-            };
-            button.Background = active ? new SolidColorBrush(Color.FromRgb(36, 99, 235)) : Brushes.Transparent;
+                "dashboard" => "NavDashboard",
+                "inventory" => "NavInventory",
+                "audit" => "NavAudit",
+                "labels" => "NavLabels",
+                "settings" => "NavSettings",
+                _ => "NavDashboard"
+            }
+        };
+
+        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit,
+                     NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports,
+                     NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment,
+                     NavAi, NavPrintTemplates })
+        {
+            var active = button.Name == activeName;
+            button.Background = active ? new SolidColorBrush(Color.FromRgb(21, 127, 134)) : Brushes.Transparent;
             button.Foreground = active ? Brushes.White : new SolidColorBrush(Color.FromRgb(193, 204, 218));
+        }
+
+        // Keep the active feature discoverable inside its module.
+        var targetGroup = SidebarModuleGroups.ModuleFor(activeName);
+        if (targetGroup is not null)
+        {
+            var section = targetGroup switch
+            {
+                SidebarModuleGroups.Stock => NavGroupStock,
+                SidebarModuleGroups.Documents => NavGroupDocuments,
+                SidebarModuleGroups.Reports => NavGroupReports,
+                SidebarModuleGroups.System => NavGroupSystem,
+                _ => null
+            };
+            if (section is not null && !section.IsExpanded) section.IsExpanded = true;
         }
     }
 
