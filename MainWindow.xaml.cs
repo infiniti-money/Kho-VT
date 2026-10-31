@@ -496,7 +496,11 @@ public partial class MainWindow : Window
     {
         if (_state is null) return;
         if (_currentEmbeddedPage is not null) return;
-        ShowEmbeddedPage(new AiAssistantWindow(State), "Trợ lý AI Gemini",
+        var assistant = new AiAssistantWindow(State)
+        {
+            OpenReplenishment = () => OpenReplenishment()
+        };
+        ShowEmbeddedPage(assistant, "Trợ lý AI Gemini",
             "Trò chuyện, báo cáo tồn kho theo tuần và tháng, mic và phản hồi bằng âm thanh");
     }
     private async void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => await OpenPrintTemplatesAsync();
