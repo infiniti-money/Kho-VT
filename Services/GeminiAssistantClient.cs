@@ -24,6 +24,53 @@ public static class GeminiAssistantClient
         Không yêu cầu người dùng đưa khóa API vào cuộc trò chuyện.
         """;
 
+    /// <summary>
+    /// Transcribe one user-approved in-memory WAV utterance. This endpoint
+    /// sends audio to Google, not Windows speech recognition. Never persist it.
+    /// </summary>
+    public static async Task<string> TranscribeVietnameseAsync(
+        string apiKey, byte[] wav, CancellationToken cancellationToken = default)
+    {
+        if (wav.Length < 44 || wav.Length > PcmVoiceActivityDetector.MaximumBytes + 44)
+            throw new ArgumentException("Âm thanh phải có định dạng WAV và không quá 25 giây.");
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent");
+        request.Headers.Add("x-goog-api-key", apiKey);
+        request.Content = JsonContent.Create(new
+        {
+            contents = new[]
+            {
+                new {
+                    role = "user",
+                    parts = new object[]
+                    {
+                        new { text = "Hãy nhận dạng nguyên văn lời nói TIẾNG VIỆT trong âm thanh. " +
+                            "Chỉ trả lại đúng nội dung đã nghe, không giải thích, không dịch. " +
+                            "Nếu không có lời nói rõ ràng, trả lại chuỗi rỗng." },
+                        new { inlineData = new { mimeType = "audio/wav", data = Convert.ToBase64String(wav) } }
+                    }
+                }
+            },
+            generationConfig = new { temperature = 0.0, maxOutputTokens = 512 }
+        });
+        using var response = await Client.SendAsync(request,
+            HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new HttpRequestException($"Gemini nhận dạng trả HTTP {(int)response.StatusCode}. Kiểm tra mạng, API key và hạn mức.");
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var json = await JsonDocument.ParseAsync(stream,
+            new JsonDocumentOptions { MaxDepth = 32 }, cancellationToken);
+        if (!json.RootElement.TryGetProperty("candidates", out var candidates) ||
+            candidates.ValueKind != JsonValueKind.Array || candidates.GetArrayLength() == 0)
+            return "";
+        if (!candidates[0].TryGetProperty("content", out var content) ||
+            !content.TryGetProperty("parts", out var parts)) return "";
+        var transcript = string.Join(" ", parts.EnumerateArray()
+            .Where(p => p.TryGetProperty("text", out var partText) && partText.ValueKind == JsonValueKind.String)
+            .Select(p => p.GetProperty("text").GetString()));
+        return transcript.Trim().Trim('"', '“', '”');
+    }
+
     public static async Task<string> AskAsync(
         string apiKey,
         string question,
