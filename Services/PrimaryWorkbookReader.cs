@@ -73,7 +73,9 @@ public static class PrimaryWorkbookReader
     {
         if (!File.Exists(path) || !Path.GetExtension(path).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
             throw new FileNotFoundException("Hãy chọn đúng file KHO.xlsx có định dạng .xlsx.", path);
-        return ZipFile.OpenRead(path);
+        // Keep Excel free to write while taking a consistent read-only snapshot.
+        // ZipArchive owns and disposes the in-memory copy, never the source file.
+        return new ZipArchive(ExcelReadSnapshot.Capture(path), ZipArchiveMode.Read);
     }
 
     private static XDocument ReadSheet(ZipArchive zip, string sheetName)
