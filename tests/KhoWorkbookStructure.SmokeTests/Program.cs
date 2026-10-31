@@ -78,8 +78,8 @@ try
 {
     Build();
     var report = PrimaryWorkbookInspector.Inspect(path);
-    if (report.CatalogItems != 1 || report.ValidTransactions != 1 ||
-        report.IncompleteTransactions != 1 || report.FreeTransactionRows != 959 ||
+    if (report.CatalogItems != 1 || report.TypedTransactions != 1 ||
+        report.IncompleteTransactions != 1 || report.MissingTransactionQuantities != 0 || report.FreeTransactionRows != 959 ||
         report.MinimumFormulaCells != 1 || report.QuantityFormulaCells != 1 ||
         report.MissingProtectedFormulas != 0 || report.SafeToPrepareWrite)
         throw new Exception("Workbook sheet/formula/stock inspection was incorrect.");
