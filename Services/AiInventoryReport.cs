@@ -77,6 +77,7 @@ public static class AiInventoryReport
     public static (int OutOfStock, int LowStock, int MovementsMonth) Metrics(InventoryState state)
     {
         var selected = state.SelectedWarehouses.Where(state.Warehouses.Contains).ToArray();
+        if (selected.Length == 0) return (0, 0, 0);
         var rows = state.Products.Where(p => p.Active).Select(item =>
             (item, stock: item.StockAt(selected))).ToList();
         var today = DateOnly.FromDateTime(DateTime.Today);
