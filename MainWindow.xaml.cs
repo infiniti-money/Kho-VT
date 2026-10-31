@@ -1280,12 +1280,14 @@ public partial class MainWindow : Window
         var first = records.First();
         var template = PrintTemplateService.Get(State, first.Type);
         var flow = NewPrintDocument();
+        PrintTemplateLayout.Apply(flow, template);
         AddTemplateHeading(flow, template);
         AddMetadata(flow, "Số phiếu", first.DocNo, "Ngày", first.Date?.ToString("dd/MM/yyyy") ?? "—");
         AddMetadata(flow, "Kho", first.Type == "Nhập" ? first.ToWarehouse ?? first.Warehouse : first.Warehouse, first.Type == "Điều chuyển" ? "Kho nhận" : first.Type == "Nhập" ? "Nhà cung cấp" : "Nơi nhận", first.Type == "Điều chuyển" ? first.ToWarehouse ?? "" : first.Partner);
         AddMetadata(flow, "Người thực hiện", first.Operator, "Chứng từ tham chiếu", first.ReferenceNo);
         flow.Blocks.Add(new Paragraph(new Run(" ")) { Margin = new Thickness(0, 2, 0, 2) });
         var table = CreateSlipTable(records);
+        PrintTemplateLayout.ApplyTableCellPadding(table, template);
         flow.Blocks.Add(table);
         flow.Blocks.Add(new Paragraph(new Run("Ghi chú: " + first.Note + (string.IsNullOrWhiteSpace(template.FooterNote) ? "" : $"\n{template.FooterNote}"))) { Margin = new Thickness(0, 12, 0, 0), FontSize = 10 });
         flow.Blocks.Add(CreateSignatureBlock(template));
@@ -1296,13 +1298,16 @@ public partial class MainWindow : Window
     {
         var template = PrintTemplateService.Get(State, request.Type);
         var flow = NewPrintDocument();
+        PrintTemplateLayout.Apply(flow, template);
         AddTemplateHeading(flow, template);
         AddMetadata(flow, "Số yêu cầu", request.DocNo, "Ngày yêu cầu", request.Date.ToString("dd/MM/yyyy"));
         AddMetadata(flow, "Bộ phận", request.Department, "Cần trước ngày", request.NeededBy?.ToString("dd/MM/yyyy") ?? "—");
         if (!string.IsNullOrWhiteSpace(request.Warehouse)) AddMetadata(flow, "Kho đề xuất", request.Warehouse, "Trạng thái", request.Status);
         AddMetadata(flow, request.Type == "Yêu cầu cấp vật tư" ? "Người nhận" : "Nhà cung cấp", request.Recipient, "Người yêu cầu", request.Requester);
         var records = request.Lines.Select(line => new InventoryTransaction { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList();
-        flow.Blocks.Add(CreateSlipTable(records));
+        var requestTable = CreateSlipTable(records);
+        PrintTemplateLayout.ApplyTableCellPadding(requestTable, template);
+        flow.Blocks.Add(requestTable);
         flow.Blocks.Add(new Paragraph(new Run($"Lý do / ghi chú: {request.Note}" + (string.IsNullOrWhiteSpace(template.FooterNote) ? "" : $"\n{template.FooterNote}"))) { Margin = new Thickness(0, 12, 0, 0), FontSize = 10 });
         flow.Blocks.Add(CreateSignatureBlock(template));
         ShowPrintDialog(flow, request.DocNo);
@@ -1311,10 +1316,10 @@ public partial class MainWindow : Window
     private static void AddTemplateHeading(FlowDocument flow, PrintTemplate template)
     {
         if (!string.IsNullOrWhiteSpace(template.Organization))
-            flow.Blocks.Add(new Paragraph(new Run(template.Organization)) { TextAlignment = TextAlignment.Center, FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) });
+            flow.Blocks.Add(new Paragraph(new Run(template.Organization)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) });
         if (!string.IsNullOrWhiteSpace(template.HeaderNote))
-            flow.Blocks.Add(new Paragraph(new Run(template.HeaderNote)) { TextAlignment = TextAlignment.Center, FontSize = 10, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 15) });
-        flow.Blocks.Add(new Paragraph(new Run(template.Title)) { TextAlignment = TextAlignment.Center, FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
+            flow.Blocks.Add(new Paragraph(new Run(template.HeaderNote)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = 10, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 15) });
+        flow.Blocks.Add(new Paragraph(new Run(template.Title)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = template.FontSize + 8, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
     }
 
     private static FlowDocument NewPrintDocument() => new()
