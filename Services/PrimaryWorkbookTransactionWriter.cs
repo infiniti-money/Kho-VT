@@ -124,7 +124,8 @@ public static class PrimaryWorkbookTransactionWriter
                     SetString(row, "L" + rowNumber,
                         string.IsNullOrEmpty(note) ? token : note + " " + token);
                 }
-                using var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
                 using (var resultZip = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
                 {
                     foreach (var entry in originalZip.Entries)
@@ -143,6 +144,7 @@ public static class PrimaryWorkbookTransactionWriter
                     }
                 }
                 output.Flush(true);
+                }
                 // No changes to source file yet; caller will receive an error if anything
                 // in staged ZIP other than the target sheet was accidentally modified.
                 using var staged = ZipFile.OpenRead(temp);
