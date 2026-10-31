@@ -1431,8 +1431,14 @@ public partial class MainWindow : Window
 
     private void ShowPrintDialog(FlowDocument flow, string description)
     {
-        var dialog = new PrintDialog();
-        if (dialog.ShowDialog() == true) dialog.PrintDocument(((IDocumentPaginatorSource)flow).DocumentPaginator, description);
+        var page = new PrintPreviewWindow(flow, description);
+        if (_currentEmbeddedPage?.Source is MaterialRequestsWindow && _embeddedPageStack.Count == 0)
+            ShowEmbeddedPage(page, "Xem trước phiếu in", "Kiểm tra bố cục rồi chọn In phiếu",
+                isChildOfCurrentPage: true);
+        else if (_currentEmbeddedPage is null)
+            ShowEmbeddedPage(page, "Xem trước phiếu in", "Kiểm tra bố cục rồi chọn In phiếu");
+        else
+            ShowToast("Vui lòng hoàn tất thao tác hiện tại trước khi xem trước phiếu in.");
     }
 
     private void ExportBackup_Click(object sender, RoutedEventArgs e)
