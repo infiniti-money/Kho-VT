@@ -18,7 +18,8 @@ public static class PrimaryWorkbookInspector
 
     public sealed record Report(
         int CatalogItems,
-        int ValidTransactions,
+        int TypedTransactions,
+        int MissingTransactionQuantities,
         int IncompleteTransactions,
         int FreeTransactionRows,
         int MinimumFormulaCells,
@@ -29,14 +30,15 @@ public static class PrimaryWorkbookInspector
         string TransactionsSheet)
     {
         public bool SafeToPrepareWrite => MissingProtectedFormulas == 0 &&
-            IncompleteTransactions == 0 && FreeTransactionRows > 0;
+            IncompleteTransactions == 0 && MissingTransactionQuantities == 0 && FreeTransactionRows > 0;
 
         public string Summary =>
-            $"{CatalogItems:N0} mã vật tư · {ValidTransactions:N0} giao dịch hợp lệ · " +
+            $"{CatalogItems:N0} mã vật tư · {TypedTransactions:N0} dòng có loại Nhập/Xuất · " +
             $"{FreeTransactionRows:N0} dòng còn trống (đến dòng 965). " +
             $"Có {MinimumFormulaCells:N0} công thức tồn tối thiểu và " +
             $"{QuantityFormulaCells:N0} công thức số lượng trong các cột nhập tay. " +
             (IncompleteTransactions > 0 ? $"{IncompleteTransactions:N0} dòng có mã hàng nhưng thiếu loại Nhập/Xuất. " : "") +
+            (MissingTransactionQuantities > 0 ? $"{MissingTransactionQuantities:N0} giao dịch thiếu số lượng hợp lệ. " : "") +
             (MissingProtectedFormulas > 0 ? $"{MissingProtectedFormulas:N0} ô công thức tính toán bị thiếu. " : "") +
             (ExternalLinkParts > 0 ? $"{ExternalLinkParts:N0} liên kết workbook ngoài cần giữ nguyên. " : "") +
             "Mới kiểm tra, KHÔNG ghi vào file.";
@@ -68,6 +70,7 @@ public static class PrimaryWorkbookInspector
         var quantityFormulas = 0;
         var valid = 0;
         var incomplete = 0;
+        var missingQuantity = 0;
         var vacant = 0;
         var missing = 0;
 
@@ -87,7 +90,14 @@ public static class PrimaryWorkbookInspector
             var type = Text(Get(cells, "C"), strings).Trim();
             if (!string.IsNullOrWhiteSpace(sku))
             {
-                if (type is "Nhập" or "Xuất") valid++;
+                if (type is "Nhập" or "Xuất")
+                {
+                    valid++;
+                    var quantity = Text(Get(cells, "G"), strings).Trim();
+                    if (!double.TryParse(quantity, NumberStyles.Float, CultureInfo.InvariantCulture, out var numeric) ||
+                        !double.IsFinite(numeric) || numeric <= 0)
+                        missingQuantity++;
+                }
                 else incomplete++;
             }
             if (HasFormula(Get(cells, "G"))) quantityFormulas++;
@@ -101,7 +111,7 @@ public static class PrimaryWorkbookInspector
                 if (!HasFormula(Get(cells, col))) missing++;
         }
 
-        return new Report(active, valid, incomplete, vacant,
+        return new Report(active, valid, missingQuantity, incomplete, vacant,
             minimumFormulas, quantityFormulas, missing,
             zip.Entries.Count(entry => entry.FullName.StartsWith("xl/externalLinks/externalLink", StringComparison.OrdinalIgnoreCase) &&
                 entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)),
