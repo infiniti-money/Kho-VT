@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using HisaWarehouse.Services;
 
 namespace HisaWarehouse;
 
@@ -10,6 +11,7 @@ public sealed class MaterialRequestRow
     public string DateText => Request.Date.ToString("dd/MM/yyyy");
     public string Type => Request.Type;
     public string Department => Request.Department;
+    public string Warehouse => string.IsNullOrWhiteSpace(Request.Warehouse) ? "—" : Request.Warehouse;
     public string Requester => Request.Requester;
     public string Recipient => Request.Recipient;
     public int LineCount => Request.Lines.Count;
@@ -54,14 +56,7 @@ public partial class MaterialRequestsWindow : Window
 
     private void SaveRequest(MaterialRequest request, string type)
     {
-        var datePart = request.Date.ToString("yyyyMMdd");
-        var prefix = type == "Yêu cầu cấp vật tư" ? "YC-CAP" : "YC-NHAP";
-        var prior = _state.MaterialRequests.Select(item => item.DocNo).Where(number => number.StartsWith($"{prefix}-{datePart}-", StringComparison.OrdinalIgnoreCase))
-            .Select(number => int.TryParse(number[(number.LastIndexOf('-') + 1)..], out var value) ? value : 0).DefaultIfEmpty(0).Max();
-        request.DocNo = $"{prefix}-{datePart}-{prior + 1:000}";
-        _state.MaterialRequests.Add(request);
-        if (!string.IsNullOrWhiteSpace(request.Department) && !_state.Departments.Contains(request.Department, StringComparer.OrdinalIgnoreCase)) _state.Departments.Add(request.Department);
-        if (!string.IsNullOrWhiteSpace(request.Recipient) && !_state.Recipients.Contains(request.Recipient, StringComparer.OrdinalIgnoreCase)) _state.Recipients.Add(request.Recipient);
+        MaterialRequestService.Add(_state, request);
         ChangesMade = true;
         RefreshRows();
         RequestsGrid.SelectedItem = (RequestsGrid.ItemsSource as IEnumerable<MaterialRequestRow>)?.FirstOrDefault(row => row.Request.Id == request.Id);

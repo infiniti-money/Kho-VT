@@ -463,7 +463,7 @@ public partial class MainWindow : Window
 
     private void SetNavState()
     {
-        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit, NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports, NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavPrintTemplates })
+        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit, NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports, NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment, NavPrintTemplates })
         {
             var active = button.Name switch
             {
@@ -489,6 +489,7 @@ public partial class MainWindow : Window
     private async void QuickMovement_Click(object sender, RoutedEventArgs e) => await OpenMovementAsync();
     private async void NavPending_Click(object sender, RoutedEventArgs e) => await OpenPendingMovementsAsync();
     private async void NavRequests_Click(object sender, RoutedEventArgs e) => await OpenMaterialRequestsAsync();
+    private void NavReplenishment_Click(object sender, RoutedEventArgs e) => OpenReplenishment();
     private async void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => await OpenPrintTemplatesAsync();
 
     private void NavQuickSearch_Click(object sender, RoutedEventArgs e)
@@ -514,6 +515,18 @@ public partial class MainWindow : Window
     private void NavCatalogs_Click(object sender, RoutedEventArgs e) => _ = OpenCatalogsAsync();
     private void NavReports_Click(object sender, RoutedEventArgs e) => ShowEmbeddedPage(new DetailedReportsWindow(State), "Báo cáo chi tiết", "Tra cứu nhật ký theo ngày, loại giao dịch, kho và SKU");
     private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) => ShowEmbeddedPage(new SoftwareInfoWindow(), "Thông tin phần mềm", "Thông tin liên hệ và tác giả");
+
+    private void OpenReplenishment()
+    {
+        if (_state is null) return;
+        var page = new ReplenishmentWindow(State);
+        ShowEmbeddedPage(page, "Đề xuất nhập kho", "Rà soát mức tồn tối thiểu và tạo yêu cầu bổ sung có kiểm soát", accepted =>
+        {
+            if (!accepted || page.ProposedRequest is not MaterialRequest proposal) return;
+            MaterialRequestService.Add(State, proposal);
+            _ = PersistAsync();
+        });
+    }
 
     private async Task OpenMaterialRequestsAsync()
     {
@@ -1081,6 +1094,7 @@ public partial class MainWindow : Window
         AddTemplateHeading(flow, template);
         AddMetadata(flow, "Số yêu cầu", request.DocNo, "Ngày yêu cầu", request.Date.ToString("dd/MM/yyyy"));
         AddMetadata(flow, "Bộ phận", request.Department, "Cần trước ngày", request.NeededBy?.ToString("dd/MM/yyyy") ?? "—");
+        if (!string.IsNullOrWhiteSpace(request.Warehouse)) AddMetadata(flow, "Kho đề xuất", request.Warehouse, "Trạng thái", request.Status);
         AddMetadata(flow, request.Type == "Yêu cầu cấp vật tư" ? "Người nhận" : "Nhà cung cấp", request.Recipient, "Người yêu cầu", request.Requester);
         var records = request.Lines.Select(line => new InventoryTransaction { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList();
         flow.Blocks.Add(CreateSlipTable(records));

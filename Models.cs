@@ -164,6 +164,7 @@ public sealed class MaterialRequest
     public DateOnly Date { get; set; } = DateOnly.FromDateTime(DateTime.Today);
     public DateOnly? NeededBy { get; set; }
     public string Department { get; set; } = "";
+    public string Warehouse { get; set; } = "";
     public string Requester { get; set; } = "";
     public string Recipient { get; set; } = "";
     public string Note { get; set; } = "";

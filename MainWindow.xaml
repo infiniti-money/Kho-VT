@@ -107,6 +107,9 @@
                     <Button x:Name="NavRequests" Style="{StaticResource NavButton}" Click="NavRequests_Click">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="▧" Width="28" FontSize="16"/><TextBlock Text="Yêu cầu vật tư" VerticalAlignment="Center"/></StackPanel>
                     </Button>
+                    <Button x:Name="NavReplenishment" Style="{StaticResource NavButton}" Click="NavReplenishment_Click">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="↥" Width="28" FontSize="17"/><TextBlock Text="Đề xuất nhập kho" VerticalAlignment="Center"/></StackPanel>
+                    </Button>
                     <Button x:Name="NavAudit" Style="{StaticResource NavButton}" Click="NavAudit_Click">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="28" FontSize="17"/><TextBlock Text="Nhật ký giao dịch" VerticalAlignment="Center"/></StackPanel>
                     </Button>
