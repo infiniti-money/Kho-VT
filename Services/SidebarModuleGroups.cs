@@ -8,6 +8,7 @@ public static class SidebarModuleGroups
 {
     public const string Stock = "NavGroupStock";
     public const string Documents = "NavGroupDocuments";
+    public const string Proposals = "NavGroupProposals";
     public const string Reports = "NavGroupReports";
     public const string System = "NavGroupSystem";
 
@@ -22,8 +23,8 @@ public static class SidebarModuleGroups
         ["NavMovement"] = Documents,
         ["NavPending"] = Documents,
         ["NavRequests"] = Documents,
-        ["NavReplenishment"] = Documents,
-        ["NavPrintTemplates"] = Documents,
+        ["NavReplenishment"] = Proposals,
+        ["NavPrintTemplates"] = Proposals,
 
         ["NavAudit"] = Reports,
         ["NavReports"] = Reports,
