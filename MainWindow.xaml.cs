@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = this;
+        UpdateStatusText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Chưa kiểm tra bản phát hành mới.";
         _toastTimer.Tick += (_, _) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         EmbeddedWindowNavigation.NotificationRequested += ShowToast;
         Closed += (_, _) => EmbeddedWindowNavigation.NotificationRequested -= ShowToast;
@@ -1325,6 +1327,97 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowToast("Không phục hồi được dữ liệu: " + ex.Message); }
     }
 
+    private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CheckUpdateButton.IsEnabled) return;
+        CheckUpdateButton.IsEnabled = false;
+        UpdateStatusText.Text = "Đang kiểm tra GitHub Releases…";
+        try
+        {
+            var release = await WarehouseUpdateService.FindLatestAsync();
+            if (release is null)
+            {
+                UpdateStatusText.Text = "Chưa có bản phát hành chính thức mới hơn. " +
+                    $"Máy đang dùng phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)}.";
+                return;
+            }
+
+            UpdateStatusText.Text = $"Đã tìm thấy {release.Tag}. Đang tải xuống và kiểm tra SHA-256…";
+            var package = await WarehouseUpdateService.DownloadVerifiedAsync(release);
+            var hasUpdater = File.Exists(Path.Combine(AppContext.BaseDirectory, "HISA.Updater.exe"));
+            var canInstall = hasUpdater && WarehouseUpdateService.IsInstallFolderWritable(AppContext.BaseDirectory);
+            if (canInstall)
+            {
+                UpdateStatusText.Text = $"Đã tải và xác minh thành công {release.Tag}. Chờ xác nhận cài đặt.";
+                ConfirmInApp(
+                    $"Đã tải xong bản {release.Tag} và xác minh SHA-256. " +
+                    "Bạn muốn HISA tự đóng, cập nhật im lặng rồi mở lại không? " +
+                    "Nếu chọn Không, tệp đã tải được giữ lại để cài thủ công.",
+                    accepted =>
+                    {
+                        if (accepted) _ = InstallDownloadedUpdateAsync(package);
+                        else ShowManualUpdatePackage(package);
+                    },
+                    "Có, cập nhật", "Không, thủ công");
+            }
+            else
+            {
+                UpdateStatusText.Text = $"Bản {release.Tag} đã tải và xác minh. " +
+                    "Thư mục cài đặt cần quyền quản trị hoặc thiếu HISA.Updater.exe; chỉ cài thủ công.";
+                ConfirmInApp(
+                    "Tệp tải về đã được xác minh. Máy này không đủ điều kiện cập nhật im lặng " +
+                    "(có thể đang cài trong Program Files). Mở vị trí tệp để cài bằng quyền quản trị?",
+                    accepted => { if (accepted) ShowManualUpdatePackage(package); },
+                    "Mở tệp tải về", "Để sau");
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "Kiểm tra / tải cập nhật chưa thành công: " + ex.Message;
+            ShowToast("Không cập nhật được: " + ex.Message);
+        }
+        finally { CheckUpdateButton.IsEnabled = true; }
+    }
+
+    private async Task InstallDownloadedUpdateAsync(string package)
+    {
+        try
+        {
+            // Persist warehouse changes BEFORE closing the app or launching the updater.
+            if (_state is not null && !await PersistAsync(false))
+            {
+                UpdateStatusText.Text = "Không thể lưu dữ liệu kho; HISA chưa thoát và chưa cập nhật.";
+                return;
+            }
+
+            WarehouseUpdateService.StartAutomaticInstall(package);
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "Chưa thể tự động cập nhật: " + ex.Message;
+            ShowToast("Bản cập nhật vẫn được giữ để cài thủ công.");
+            ShowManualUpdatePackage(package);
+        }
+    }
+
+    private void ShowManualUpdatePackage(string path)
+    {
+        try
+        {
+            var start = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+            start.ArgumentList.Add("/select," + path);
+            Process.Start(start);
+            UpdateStatusText.Text = "Đã mở tệp ZIP cập nhật. Hãy đóng HISA và " +
+                "giải nén bộ mới, hoặc dùng bộ cài được cấp quyền quản trị. " +
+                "Không thay thế file kho chính hoặc thư mục dữ liệu người dùng.";
+        }
+        catch (Exception ex)
+        {
+            UpdateStatusText.Text = "Đã tải tệp vào " + path + ". Không mở được Explorer: " + ex.Message;
+        }
+    }
+
     private void ShowToast(string message)
     {
         ToastText.Text = message;
@@ -1333,8 +1426,11 @@ public partial class MainWindow : Window
         _toastTimer.Start();
     }
 
-    private void ConfirmInApp(string message, Action<bool> completion)
+    private void ConfirmInApp(string message, Action<bool> completion,
+        string yesLabel = "Xác nhận", string noLabel = "Quay lại")
     {
+        ConfirmationYesButton.Content = yesLabel;
+        ConfirmationNoButton.Content = noLabel;
         _toastTimer.Stop();
         ToastBorder.Visibility = Visibility.Collapsed;
         ConfirmationText.Text = message;

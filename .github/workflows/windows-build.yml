@@ -34,8 +34,18 @@ jobs:
       - name: Test original KHO.xlsx sheet and formula validation
         run: dotnet run --project tests/KhoWorkbookStructure.SmokeTests/KhoWorkbookStructure.SmokeTests.csproj --configuration Release --nologo
 
+      - name: Smoke test offline updater and safe file replacement
+        run: dotnet run --project Updater/HisaUpdater.csproj --configuration Release -- --self-test
+
       - name: Publish self-contained Windows application
         run: dotnet publish HisaWarehouse.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false --output publish-reconciled --nologo
+
+      - name: Publish standalone updater
+        run: dotnet publish Updater/HisaUpdater.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true --output updater-publish --nologo
+
+      - name: Include updater in Windows app package
+        shell: pwsh
+        run: Copy-Item "updater-publish/HISA.Updater.exe" "publish-reconciled/HISA.Updater.exe" -Force
 
       - name: Check published files
         shell: pwsh
@@ -45,7 +55,8 @@ jobs:
             "publish-reconciled/data/initial_data.json",
             "publish-reconciled/Web/charts.html",
             "publish-reconciled/Assets/hisa_logo.png",
-            "publish-reconciled/Assets/hisa.ico"
+            "publish-reconciled/Assets/hisa.ico",
+            "publish-reconciled/HISA.Updater.exe"
           )
           foreach ($path in $required) {
             if (-not (Test-Path $path)) {
@@ -53,6 +64,18 @@ jobs:
             }
           }
           Write-Host "Build output includes executable and required runtime data."
+
+      - name: Create ZIP package compatible with future GitHub Releases
+        shell: pwsh
+        run: Compress-Archive -Path "publish-reconciled/*" -DestinationPath "HISA-KhoVT-Windows-x64.zip" -CompressionLevel Optimal
+
+      - name: Upload release-format ZIP for future publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: HISA-KhoVT-Release-ZIP-PREVIEW
+          path: HISA-KhoVT-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload Windows test build (not an installer)
         uses: actions/upload-artifact@v4
