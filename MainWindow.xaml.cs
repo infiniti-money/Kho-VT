@@ -31,6 +31,7 @@ public partial class MainWindow : Window
     private EmbeddedPageEntry? _currentEmbeddedPage;
     private string _embeddedReturnPage = "dashboard";
     private Action<bool>? _confirmationCompletion;
+    private readonly SemaphoreSlim _excelMovementWriteGate = new(1, 1);
 
     public ObservableCollection<InventoryRow> InventoryRows { get; } = [];
     public ObservableCollection<InventoryRow> LabelRows { get; } = [];
@@ -887,9 +888,64 @@ public partial class MainWindow : Window
             ShowToast($"Đã lưu {docNo} ở trạng thái chờ xác nhận; tồn kho chưa thay đổi.");
             return;
         }
+        if (!await TryWriteMovementToExcelAsync(draft, docNo)) return;
         ApplyMovement(draft, docNo);
         await PersistAsync(false);
-        ShowToast($"Đã lưu {docNo}. Mở Nhật ký giao dịch để in phiếu.");
+        ShowToast($"Đã lưu {docNo} vào sheet Nhập Xuất và nhật ký HISA. Có thể mở báo cáo để in.");
+    }
+
+    private async Task<bool> TryWriteMovementToExcelAsync(MovementDraft draft, string docNo)
+    {
+        // The source workbook is a single logical stock ledger. A transfer between
+        // internal HISA warehouses has no Nhập/Xuất equivalent and no net change.
+        if (draft.Type == "Điều chuyển")
+        {
+            ShowToast("Phiếu điều chuyển nội bộ không ghi vào bảng Nhập Xuất của KHO.xlsx.");
+            return true;
+        }
+        if (draft.Type is not ("Nhập" or "Xuất"))
+        {
+            MessageBox.Show(this, "Loại phiếu không hợp lệ. Không ghi Excel.",
+                "Nhập/Xuất kho", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        var path = State.PrimaryExcelPath?.Trim();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            MessageBox.Show(this,
+                "Chưa chọn file KHO.xlsx chính. Vào Dữ liệu & phần mềm, chọn file chính trước khi lập phiếu. " +
+                "Phiếu và tồn kho chưa được ghi để tránh chênh lệch với Excel.",
+                "Chưa chọn file kho chính", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+
+        var rows = draft.Lines.Select(line => new PrimaryWorkbookTransactionWriter.Input(
+            draft.Date, draft.Type, line.Sku, line.Quantity,
+            string.IsNullOrWhiteSpace(draft.Partner) ? draft.Operator : draft.Partner,
+            draft.Note)).ToArray();
+        await _excelMovementWriteGate.WaitAsync();
+        try
+        {
+            var result = await Task.Run(() =>
+                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows));
+            ShowToast($"Đã ghi {result.RowCount} dòng Nhập/Xuất bắt đầu tại dòng {result.FirstRow}. " +
+                "File Excel gốc có bản sao lưu trước khi ghi.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                "Không thể ghi sheet Nhập Xuất: " + ex.Message +
+                "\n\nHISA KHÔNG cập nhật số dư hoặc nhật ký giao dịch cho phiếu này. " +
+                "Hãy lưu và đóng Excel, kiểm tra công thức và vị trí trống, rồi thử lại.",
+                "Bảo vệ KHO.xlsx", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+        finally
+        {
+            _excelMovementWriteGate.Release();
+        }
     }
 
     private string NextMovementDocNo(string type, DateOnly date)
@@ -1002,10 +1058,11 @@ public partial class MainWindow : Window
             Lines = pending.Lines.Select(line => new MovementLine { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList()
         };
         if (!ValidateCurrentStock(movementDraft)) return;
+        if (!await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo)) return;
         ApplyMovement(movementDraft, pending.DocNo);
         pending.Status = "Đã xác nhận";
         await PersistAsync(false);
-        ShowToast($"Đã xác nhận {pending.DocNo} và cập nhật tồn kho. Mở Nhật ký giao dịch để in phiếu.");
+        ShowToast($"Đã xác nhận {pending.DocNo} và ghi sheet Nhập Xuất (nếu là Nhập/Xuất).");
     }
 
     private bool ValidateCurrentStock(MovementDraft draft)
