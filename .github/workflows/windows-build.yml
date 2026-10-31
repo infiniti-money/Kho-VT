@@ -77,6 +77,34 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Install Inno Setup compiler if missing
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6/ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Cannot install Inno Setup compiler" }
+          }
+
+      - name: Build Vietnamese Windows installer
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6/ISCC.exe"
+          if (-not (Test-Path $compiler)) { throw "Inno Setup Compiler not found: $compiler" }
+          [xml]$project = Get-Content "HisaWarehouse.csproj"
+          $version = $project.Project.PropertyGroup.Version
+          & $compiler "/DMyAppVersion=$version" "installer/HisaKho.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with code $LASTEXITCODE" }
+          if (-not (Test-Path "installer-output/HISA-KhoVT-Setup.exe")) { throw "Setup EXE not found" }
+
+      - name: Upload Vietnamese installer preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: HISA-KhoVT-Vietnamese-Installer-EXE-PREVIEW
+          path: installer-output/HISA-KhoVT-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload Windows test build (not an installer)
         uses: actions/upload-artifact@v4
         with:
