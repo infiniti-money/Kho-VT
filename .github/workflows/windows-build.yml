@@ -43,6 +43,9 @@ jobs:
       - name: Test grouped business navigation structure
         run: dotnet run --project tests/SidebarModules.SmokeTests/SidebarModules.SmokeTests.csproj --configuration Release --nologo
 
+      - name: Regression tests for Vietnamese PCM voice activity
+        run: dotnet run --project tests/PcmVoiceActivity.SmokeTests/PcmVoiceActivity.SmokeTests.csproj --configuration Release --nologo
+
       - name: Publish self-contained Windows application
         run: dotnet publish HisaWarehouse.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false --output publish-reconciled --nologo
 
