@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private sealed record EmbeddedPageEntry(Window Source, FrameworkElement Content, string Title, string Subtitle);
 
     private InventoryState? _state;
+    private DetailedReportsWindow? _detailedReportPage;
     private CoreWebView2Environment? _webViewEnvironment;
     private string _currentPage = "dashboard";
     private string _trendUnit = "*";
@@ -40,6 +41,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = this;
         UpdateStatusText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Chưa kiểm tra bản phát hành mới.";
+        SystemInfoText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Windows x64 · HISA Kho-VT";
         _toastTimer.Tick += (_, _) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         EmbeddedWindowNavigation.NotificationRequested += ShowToast;
         Closed += (_, _) => EmbeddedWindowNavigation.NotificationRequested -= ShowToast;
@@ -428,9 +430,8 @@ public partial class MainWindow : Window
     private void HideStandardPages()
     {
         DashboardPage.Visibility = Visibility.Collapsed;
-        InventoryPage.Visibility = Visibility.Collapsed;
-        AuditPage.Visibility = Visibility.Collapsed;
-        LabelsPage.Visibility = Visibility.Collapsed;
+        InventoryWorkspaceTabs.Visibility = Visibility.Collapsed;
+        AuditReportTabs.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
     }
 
@@ -439,14 +440,21 @@ public partial class MainWindow : Window
         if (!CanOpenAnotherPage()) return;
         _currentPage = page;
         DashboardPage.Visibility = page == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
-        InventoryPage.Visibility = page == "inventory" ? Visibility.Visible : Visibility.Collapsed;
-        AuditPage.Visibility = page == "audit" ? Visibility.Visible : Visibility.Collapsed;
-        LabelsPage.Visibility = page == "labels" ? Visibility.Visible : Visibility.Collapsed;
+        InventoryWorkspaceTabs.Visibility = page is "inventory" or "labels" ? Visibility.Visible : Visibility.Collapsed;
+        if (page == "inventory") InventoryWorkspaceTabs.SelectedIndex = 0;
+        if (page == "labels") InventoryWorkspaceTabs.SelectedIndex = 1;
+        AuditReportTabs.Visibility = page is "reports" or "audit" ? Visibility.Visible : Visibility.Collapsed;
+        if (page is "reports" or "audit")
+        {
+            EnsureDetailedReportTab();
+            if (page == "audit") AuditReportTabs.SelectedIndex = 0;
+        }
         SettingsPage.Visibility = page == "settings" ? Visibility.Visible : Visibility.Collapsed;
         var pageDetails = page switch
         {
             "inventory" => ("Danh mục tồn kho", "Tìm kiếm, phân loại, cập nhật số dư và quản lý SKU"),
             "audit" => ("Nhật ký giao dịch", "Tra cứu chứng từ, luồng hàng và người thực hiện"),
+            "reports" => ("Báo cáo & nhật ký", "Tra cứu lịch sử, lọc nâng cao và xuất báo cáo Excel"),
             "labels" => ("Tem & mã vạch", "Tạo nhãn SKU và in theo lô"),
             "settings" => ("Sao lưu & dữ liệu", "Thông tin nguồn và phục hồi dữ liệu ứng dụng"),
             "movement" => ("Nhập & Xuất kho", "Ghi nhận giao nhận và điều chuyển vật tư"),
@@ -456,6 +464,16 @@ public partial class MainWindow : Window
         BreadcrumbSubtitle.Text = pageDetails.Item2;
         SetNavState();
         if (page == "dashboard") _ = UpdateChartsAsync();
+    }
+
+    private void EnsureDetailedReportTab()
+    {
+        if (_state is null || _detailedReportPage is not null) return;
+        _detailedReportPage = new DetailedReportsWindow(State) { Owner = this };
+        var view = _detailedReportPage.Content;
+        _detailedReportPage.Content = null;
+        _detailedReportPage.Tag = new Action<bool>(_ => AuditReportTabs.SelectedIndex = 0);
+        ReportDetailHost.Content = view;
     }
 
     private void ShowEmbeddedPage(Window window, string title, string subtitle,
@@ -553,8 +571,8 @@ public partial class MainWindow : Window
             {
                 "dashboard" => "NavDashboard",
                 "inventory" => "NavInventory",
-                "audit" => "NavAudit",
-                "labels" => "NavLabels",
+                "audit" or "reports" => "NavReports",
+                "labels" => "NavInventory",
                 "settings" => "NavSettings",
                 _ => "NavDashboard"
             }
