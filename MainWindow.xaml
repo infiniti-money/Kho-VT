@@ -162,6 +162,7 @@
                             <Button x:Name="NavRequests" Style="{StaticResource NavButton}" Click="NavRequests_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="▧" Width="28" FontSize="16"/><TextBlock Text="Yêu cầu vật tư" VerticalAlignment="Center"/></StackPanel>
                             </Button>
+                        </StackPanel>
                     </Expander>
                     <Expander x:Name="NavGroupProposals" Style="{StaticResource NavGroupExpander}" Header="ĐỀ XUẤT &amp; MẪU IN" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
@@ -171,7 +172,6 @@
                             <Button x:Name="NavPrintTemplates" Style="{StaticResource NavButton}" Click="NavPrintTemplates_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="▤" Width="28" FontSize="16"/><TextBlock Text="Mẫu in phiếu" VerticalAlignment="Center"/></StackPanel>
                             </Button>
-                        </StackPanel>
                         </StackPanel>
                     </Expander>
                     <Expander x:Name="NavGroupReports" Style="{StaticResource NavGroupExpander}" Header="BÁO CÁO &amp; TRỢ LÝ AI" IsExpanded="False" Expanded="NavGroup_Expanded">
