@@ -573,11 +573,18 @@ public partial class MainWindow : Window
         PrimaryWriteStatusText.Text = writeStatus.Message;
         try
         {
+            var audit = PrimaryWorkbookInspector.Inspect(path);
             var stocks = PrimaryWorkbookReader.ReadStocks(path);
             var transactions = PrimaryWorkbookReader.ReadTransactions(path);
+            PrimaryWriteStatusText.Text = writeStatus.Message + "\n" + audit.Summary;
+            if (audit.MissingProtectedFormulas > 0)
+            {
+                ShowToast($"Phát hiện {audit.MissingProtectedFormulas:N0} ô thiếu công thức bảo vệ. Không cho phép chuẩn bị ghi vào file.");
+                return;
+            }
             State.PrimaryExcelPath = path;
-            await PersistAsync(false);
-            ShowToast($"File kho chính hợp lệ: {stocks.Count:N0} mã vật tư và {transactions.Count:N0} giao dịch. {writeStatus.Message}");
+            if (!await PersistAsync(false)) return;
+            ShowToast($"Đã kiểm tra file kho: {stocks.Count:N0} mã, {transactions.Count:N0} giao dịch. {audit.IncompleteTransactions:N0} dòng chưa đủ loại. KHÔNG ghi vào Excel.");
         }
         catch (Exception ex)
         {
