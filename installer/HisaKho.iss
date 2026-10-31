@@ -41,7 +41,7 @@ ChangesAssociations=no
 SetupLogging=yes
 
 [Languages]
-Name: "vi"; MessagesFile: "compiler:Default.isl,installer:Vietnamese.isl"
+Name: "vi"; MessagesFile: "compiler:Default.isl,Vietnamese.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Tạo biểu tượng HISA trên màn hình Desktop"; GroupDescription: "Tùy chọn biểu tượng:"
@@ -59,8 +59,3 @@ Name: "{autodesktop}\HISA - Quản lý kho vật tư"; Filename: "{app}\{#MyAppE
 Filename: "{app}\{#MyAppExeName}"; Description: "Khởi động HISA"; Flags: nowait postinstall skipifsilent runasoriginaluser
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait runasoriginaluser; Check: WizardSilent
 
-[Code]
-function InitializeSetup(): Boolean;
-begin
-  Result := True;
-end;
