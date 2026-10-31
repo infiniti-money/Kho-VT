@@ -175,7 +175,9 @@ public static class ExcelInventoryService
 
     public static Dictionary<string, ReferenceStockValue> ReadReferenceStock(string path)
     {
-        using var workbook = new XLWorkbook(path);
+        // Read the saved file without locking it against Excel's editor.
+        using var snapshot = ExcelReadSnapshot.Capture(path);
+        using var workbook = new XLWorkbook(snapshot);
         foreach (var sheet in workbook.Worksheets)
         {
             var first = sheet.FirstRowUsed()?.RowNumber() ?? 0;
