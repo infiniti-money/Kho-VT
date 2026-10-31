@@ -375,16 +375,17 @@ public partial class MainWindow : Window
         SettingsAuditText.Text = $"{mismatchText}\nLịch sử có {State.SourceAudit.HistoryRowsWithMissingQuantity} dòng thiếu số lượng và {State.SourceAudit.HistoryRowsWithMissingType} dòng thiếu loại giao dịch. Dashboard Excel có {State.SourceAudit.DashboardFormulaErrors} ô #REF! và workbook chứa {State.SourceAudit.ExternalWorkbookLinks} liên kết ngoài. Các giao dịch lịch sử không tự cộng lại vào snapshot hiện tại.";
     }
 
-    private async Task PersistAsync(bool notify = true)
+    private async Task<bool> PersistAsync(bool notify = true)
     {
-        if (_state is null || StorageWebView.CoreWebView2 is null) return;
+        if (_state is null || StorageWebView.CoreWebView2 is null) return false;
         try
         {
             await InventoryStore.SaveAsync(StorageWebView.CoreWebView2, State);
             RefreshDashboard(); RefreshInventory(); RefreshAudit(); RefreshLabels(); RefreshSettings();
             if (notify) ShowToast("Đã lưu thay đổi vào thiết bị này.");
+            return true;
         }
-        catch (Exception ex) { ShowToast("Không thể lưu: " + ex.Message); }
+        catch (Exception ex) { ShowToast("Không thể lưu: " + ex.Message); return false; }
     }
 
     private void NavigateTo(string page)
@@ -1233,8 +1234,18 @@ public partial class MainWindow : Window
         try
         {
             var restored = InventoryStore.ReadBackup(fileName) ?? throw new InvalidDataException("Tệp JSON không có dữ liệu HISA hợp lệ.");
+            var previousState = _state;
             _state = restored;
-            InitializeFilters(); RenderAll(); await PersistAsync();
+            InitializeFilters();
+            RenderAll();
+            if (!await PersistAsync())
+            {
+                // Keep the previous in-memory inventory if the restored data cannot be saved.
+                _state = previousState;
+                InitializeFilters();
+                RenderAll();
+                return;
+            }
             ShowToast("Đã phục hồi bản sao lưu.");
         }
         catch (Exception ex) { ShowToast("Không phục hồi được dữ liệu: " + ex.Message); }
