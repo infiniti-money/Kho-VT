@@ -33,7 +33,7 @@ public static class PackageInstaller
                 long expanded = 0;
                 foreach (var entry in archive.Entries)
                 {
-                    if (entry.FullName.EndsWith('/', StringComparison.Ordinal))
+                    if (entry.FullName.EndsWith("/", StringComparison.Ordinal))
                         continue;
                     var path = ValidateRelativePath(entry.FullName);
                     if (!seen.Add(path))
