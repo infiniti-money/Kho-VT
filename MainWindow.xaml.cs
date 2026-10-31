@@ -546,7 +546,7 @@ public partial class MainWindow : Window
         // Behave like an accordion. Expanding a different group only changes
         // the menu, not the active work page or any unsaved form.
         if (!IsLoaded || sender is not Expander opened) return;
-        foreach (var group in new[] { NavGroupStock, NavGroupDocuments, NavGroupReports, NavGroupSystem })
+        foreach (var group in new[] { NavGroupStock, NavGroupDocuments, NavGroupProposals, NavGroupReports, NavGroupSystem })
             if (!ReferenceEquals(group, opened)) group.IsExpanded = false;
     }
 
@@ -596,6 +596,7 @@ public partial class MainWindow : Window
             {
                 SidebarModuleGroups.Stock => NavGroupStock,
                 SidebarModuleGroups.Documents => NavGroupDocuments,
+                SidebarModuleGroups.Proposals => NavGroupProposals,
                 SidebarModuleGroups.Reports => NavGroupReports,
                 SidebarModuleGroups.System => NavGroupSystem,
                 _ => null
