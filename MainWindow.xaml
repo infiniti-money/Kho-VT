@@ -340,6 +340,21 @@
                     <StackPanel>
                         <TextBlock Text="Sao lưu &amp; dữ liệu" Foreground="#172B45" FontSize="21" FontWeight="Bold" />
                         <TextBlock Text="Thông tin nguồn Excel, dữ liệu lưu cục bộ và công cụ phục hồi" Foreground="#78899E" FontSize="11" Margin="0,4,0,17" />
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,14" Padding="20">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Cập nhật HISA qua Internet" Style="{StaticResource SectionTitle}"/>
+                                    <TextBlock x:Name="UpdateStatusText" Text="Phiên bản hiện tại · Chưa kiểm tra phiên bản mới"
+                                               Foreground="#4E6883" FontSize="11" TextWrapping="Wrap" MaxWidth="720" Margin="0,7,12,5"/>
+                                    <TextBlock Text="Tải bản chính thức từ GitHub, xác minh SHA-256 rồi hỏi bạn có muốn thoát và cập nhật. Không sửa KHO.xlsx và khóa Gemini."
+                                               Foreground="#7A8BA0" FontSize="10.5" TextWrapping="Wrap" MaxWidth="720"/>
+                                </StackPanel>
+                                <Button x:Name="CheckUpdateButton" Grid.Column="1" Content="Kiểm tra &amp; tải cập nhật"
+                                        Style="{StaticResource PrimaryButton}" Click="CheckUpdate_Click"
+                                        VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </Grid>
+                        </Border>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Bản sao lưu dữ liệu" Style="{StaticResource SectionTitle}"/><TextBlock Text="Xuất hoặc phục hồi danh mục, số dư theo kho và nhật ký giao dịch." Foreground="#78899E" FontSize="11" Margin="0,5,0,0"/></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="Nhập bản sao lưu" Style="{StaticResource SecondaryButton}" Click="ImportBackup_Click" Margin="0,0,8,0"/><Button Content="Xuất bản sao lưu" Style="{StaticResource PrimaryButton}" Click="ExportBackup_Click"/></StackPanel></Grid></Border>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14"><StackPanel><TextBlock Text="Nguồn dữ liệu ban đầu" Style="{StaticResource SectionTitle}"/><TextBlock x:Name="SettingsSourceText" Text="KHO.xlsx" Foreground="#586C84" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/><TextBlock x:Name="SettingsAuditText" Text="" Foreground="#78899E" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0"/></StackPanel></Border>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
@@ -375,8 +390,8 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TextBlock x:Name="ConfirmationText" Text="Xác nhận thao tác?" Foreground="#172B45" FontSize="13" TextWrapping="Wrap"/>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                        <Button Content="Quay lại" Click="ConfirmationNo_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"/>
-                        <Button Content="Xác nhận" Click="ConfirmationYes_Click" Style="{StaticResource PrimaryButton}"/>
+                        <Button x:Name="ConfirmationNoButton" Content="Quay lại" Click="ConfirmationNo_Click" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0"/>
+                        <Button x:Name="ConfirmationYesButton" Content="Xác nhận" Click="ConfirmationYes_Click" Style="{StaticResource PrimaryButton}"/>
                     </StackPanel>
                 </Grid>
             </Border>
