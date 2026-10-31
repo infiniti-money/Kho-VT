@@ -64,6 +64,8 @@
                             <TextBlock x:Name="MovementCountText" Foreground="#607B97" FontSize="11" Margin="0,13,0,12" TextWrapping="Wrap"/>
                             <Button Content="Xem báo cáo nhập / xuất 7–30 ngày" Style="{StaticResource AiSecondary}"
                                     Click="LocalReport_Click" HorizontalAlignment="Stretch"/>
+                            <Button Content="Xem và duyệt đề xuất nhập kho" Style="{StaticResource AiAction}"
+                                    Click="ReviewProposals_Click" Margin="0,9,0,0" HorizontalAlignment="Stretch"/>
                         </StackPanel>
                     </Border>
 
