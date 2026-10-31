@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using Microsoft.Web.WebView2.Core;
 
 namespace HisaWarehouse.Services;
@@ -43,12 +44,31 @@ public static class InventoryStore
         return seeded;
     }
 
+    // Serialize writes so two fast UI operations cannot overwrite each other out of order.
+    private static readonly SemaphoreSlim SaveGate = new(1, 1);
+
     public static async Task SaveAsync(CoreWebView2 storageCore, InventoryState state)
     {
-        Normalize(state);
-        var json = JsonSerializer.Serialize(state, JsonOptions);
-        var script = $"localStorage.setItem({JsonSerializer.Serialize(StorageKey)}, {JsonSerializer.Serialize(json)}); true;";
-        await storageCore.ExecuteScriptAsync(script);
+        await SaveGate.WaitAsync();
+        try
+        {
+            Normalize(state);
+            var json = JsonSerializer.Serialize(state, JsonOptions);
+            var key = JsonSerializer.Serialize(StorageKey);
+            var value = JsonSerializer.Serialize(json);
+
+            // ExecuteScriptAsync may return "null" when JavaScript fails, without throwing
+            // a .NET exception (e.g., when the browser's storage quota is exceeded).
+            // Explicitly check that the new data was saved and can be read back.
+            var script = $"(() => {{ try {{ localStorage.setItem({key}, {value}); return localStorage.getItem({key}) === {value}; }} catch {{ return false; }} }})()";
+            var result = await storageCore.ExecuteScriptAsync(script);
+            if (!string.Equals(result, "true", StringComparison.Ordinal))
+                throw new IOException("Không ghi được dữ liệu kho vào bộ nhớ máy. Có thể bộ nhớ đã đầy. Hãy xuất bản sao lưu JSON và kiểm tra dung lượng lưu trữ.");
+        }
+        finally
+        {
+            SaveGate.Release();
+        }
     }
 
     public static InventoryState? ReadBackup(string path)
