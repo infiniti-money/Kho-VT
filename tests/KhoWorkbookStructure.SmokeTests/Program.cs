@@ -31,7 +31,7 @@ void Build(bool missingFormula = false, bool wrongHeader = false)
         new XAttribute(XNamespace.Xmlns + "r", r.NamespaceName),
         new XElement(m + "sheets",
             new XElement(m + "sheet", new XAttribute("name", "Danh mục"), new XAttribute("sheetId", 1), new XAttribute(r + "id", "rId1")),
-            new XElement(m + "sheet", new XAttribute("name", "Nhập Xuất"), new XAttribute("sheetId", 2), new XAttribute(r + "id", "rId2")))));
+            new XElement(m + "sheet", new XAttribute("name", "Nhập Xuất"), new XAttribute("sheetId", 2), new XAttribute(r + "id", "rId2"))))));
     Add("xl/_rels/workbook.xml.rels", new XDocument(new XElement(pr + "Relationships",
         new XElement(pr + "Relationship", new XAttribute("Id", "rId1"), new XAttribute("Target", "worksheets/sheet1.xml"), new XAttribute("Type", "worksheet")),
         new XElement(pr + "Relationship", new XAttribute("Id", "rId2"), new XAttribute("Target", "worksheets/sheet2.xml"), new XAttribute("Type", "worksheet")))));
