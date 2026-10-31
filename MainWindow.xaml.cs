@@ -393,8 +393,8 @@ public partial class MainWindow : Window
 
     private bool CanOpenAnotherPage()
     {
-        if (_currentEmbeddedPage is null) return true;
-        ShowToast($"Trang «{_currentEmbeddedPage.Title}» vẫn đang mở. Vui lòng đóng trang này trước khi mở trang khác.");
+        if (WorkspaceNavigationPolicy.CanOpenRootPage(_currentEmbeddedPage is not null)) return true;
+        ShowToast($"Trang «{_currentEmbeddedPage!.Title}» vẫn đang mở. Vui lòng đóng trang này trước khi mở trang khác.");
         return false;
     }
 
@@ -439,8 +439,8 @@ public partial class MainWindow : Window
         // replace its content. Closing that child restores the original form.
         if (isChildOfCurrentPage)
         {
-            if (_currentEmbeddedPage?.Source is not MaterialRequestsWindow ||
-                _embeddedPageStack.Count != 0)
+            if (!WorkspaceNavigationPolicy.CanOpenRequestEditor(
+                    _currentEmbeddedPage?.Source is MaterialRequestsWindow, _embeddedPageStack.Count))
                 throw new InvalidOperationException("Chỉ có thể mở phiếu con từ trang Yêu cầu vật tư đang hiển thị.");
         }
         else if (!CanOpenAnotherPage()) return;
