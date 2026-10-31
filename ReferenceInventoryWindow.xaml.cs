@@ -21,7 +21,7 @@ public sealed class ReferenceComparisonRow : INotifyPropertyChanged
     public string AppStockText => AppStock.HasValue ? InventoryRow.FormatQuantity(AppStock.Value) : "—";
     public string ActualStockText => ActualStock.HasValue ? InventoryRow.FormatQuantity(ActualStock.Value) : "—";
     public string DifferenceText => Difference.HasValue ? $"{(Difference > 0 ? "+" : "")}{InventoryRow.FormatQuantity(Difference.Value)}" : "—";
-    public string Status => Item is null ? "SKU ngoài danh mục" : !ActualStock.HasValue ? "Không có trong tệp" : Math.Abs(Difference!.Value) < 0.000001 ? "Khớp" : "Chênh lệch";
+    public string Status => !AppStock.HasValue ? "Mã ngoài file chính" : !ActualStock.HasValue ? "Không có trong tệp đối chiếu" : Math.Abs(Difference!.Value) < 0.000001 ? "Khớp" : "Chênh lệch";
 
     public double? ProposedStock
     {
@@ -41,13 +41,15 @@ public sealed class ReferenceComparisonRow : INotifyPropertyChanged
 public partial class ReferenceInventoryWindow : Window
 {
     private readonly InventoryState _state;
+    private readonly string _primaryPath;
     public string ResolvedPath { get; }
     public Func<IReadOnlyList<ReferenceComparisonRow>, string, Task>? ApplyChanges { get; set; }
 
-    public ReferenceInventoryWindow(InventoryState state, string path)
+    public ReferenceInventoryWindow(InventoryState state, string path, string primaryPath)
     {
         InitializeComponent();
         _state = state;
+        _primaryPath = primaryPath;
         ResolvedPath = ResolveWorkbook(path);
         WarehouseBox.ItemsSource = state.Warehouses;
         WarehouseBox.SelectedItem = state.Warehouses.FirstOrDefault(warehouse => warehouse.Equals("Kho tổng", StringComparison.OrdinalIgnoreCase))
@@ -60,26 +62,28 @@ public partial class ReferenceInventoryWindow : Window
         var info = new FileInfo(ResolvedPath);
         SourceText.Text = $"{ResolvedPath} · cập nhật {info.LastWriteTime:dd/MM/yyyy HH:mm}";
         var reference = ExcelInventoryService.ReadReferenceStock(ResolvedPath);
+        var primary = PrimaryWorkbookReader.ReadStocks(_primaryPath);
         var products = _state.Products.Where(item => item.Active).ToDictionary(item => item.Sku, StringComparer.OrdinalIgnoreCase);
         var rows = new List<ReferenceComparisonRow>();
 
-        foreach (var item in _state.Products.Where(item => item.Active).OrderBy(item => item.Sku, StringComparer.OrdinalIgnoreCase))
+        foreach (var item in primary.Values.OrderBy(item => item.Sku, StringComparer.OrdinalIgnoreCase))
         {
             reference.TryGetValue(item.Sku, out var actual);
-            var appStock = item.StockAt(_state.Warehouses);
+            products.TryGetValue(item.Sku, out var appItem);
             rows.Add(new ReferenceComparisonRow
             {
-                Item = item,
+                Item = appItem,
                 Sku = item.Sku,
                 Name = item.Name,
                 Unit = item.Unit,
-                AppStock = appStock,
+                AppStock = item.Current,
                 ActualStock = actual?.Quantity,
-                ProposedStock = actual?.Quantity ?? appStock
+                ProposedStock = item.Current
             });
         }
 
-        foreach (var external in reference.Values.Where(value => !products.ContainsKey(value.Sku)).OrderBy(value => value.Sku, StringComparer.OrdinalIgnoreCase))
+        foreach (var external in reference.Values.Where(value => !primary.ContainsKey(value.Sku))
+                     .OrderBy(value => value.Sku, StringComparer.OrdinalIgnoreCase))
         {
             rows.Add(new ReferenceComparisonRow
             {
@@ -92,6 +96,9 @@ public partial class ReferenceInventoryWindow : Window
         }
 
         ComparisonGrid.ItemsSource = rows;
+        ComparisonGrid.IsReadOnly = true;
+        ApplyButton.Visibility = Visibility.Collapsed;
+        WarehouseBox.IsEnabled = false;
         var matches = rows.Count(row => row.Status == "Khớp");
         var differences = rows.Count(row => row.Status == "Chênh lệch");
         var missing = rows.Count(row => row.Status == "Không có trong tệp");
