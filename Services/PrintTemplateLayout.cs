@@ -44,6 +44,14 @@ public static class PrintTemplateLayout
         flow.FontSize = t.FontSize;
     }
 
+    public static void ApplyTableCellPadding(Table table, PrintTemplate template)
+    {
+        foreach (var group in table.RowGroups)
+            foreach (var row in group.Rows)
+                foreach (var cell in row.Cells)
+                    cell.Padding = new Thickness(template.CellPadding);
+    }
+
     public static FlowDocument Preview(PrintTemplate t)
     {
         var flow = new FlowDocument { Foreground = Brushes.Black };
