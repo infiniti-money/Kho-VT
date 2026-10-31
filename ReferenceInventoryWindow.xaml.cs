@@ -101,9 +101,9 @@ public partial class ReferenceInventoryWindow : Window
         WarehouseBox.IsEnabled = false;
         var matches = rows.Count(row => row.Status == "Khớp");
         var differences = rows.Count(row => row.Status == "Chênh lệch");
-        var missing = rows.Count(row => row.Status == "Không có trong tệp");
-        var outside = rows.Count(row => row.Status == "SKU ngoài danh mục");
-        SummaryText.Text = $"Tổng {rows.Count:N0} mã · khớp {matches:N0} · lệch {differences:N0} · thiếu {missing:N0} · ngoài app {outside:N0}";
+        var missing = rows.Count(row => row.Status == "Không có trong tệp đối chiếu");
+        var outside = rows.Count(row => row.Status == "Mã ngoài file chính");
+        SummaryText.Text = $"Tổng {rows.Count:N0} mã · khớp {matches:N0} · lệch {differences:N0} · thiếu {missing:N0} · ngoài file chính {outside:N0}";
     }
 
     private void SelectDifferences_Click(object sender, RoutedEventArgs e)
