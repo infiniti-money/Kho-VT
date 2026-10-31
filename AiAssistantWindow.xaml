@@ -87,7 +87,7 @@
                             <TextBlock Text="QUYỀN RIÊNG TƯ &amp; PHÊ DUYỆT" Foreground="#28537E" FontWeight="Bold" FontSize="11"/>
                             <CheckBox x:Name="ShareDataCheck" Margin="0,11,0,10" FontSize="11.5"
                                       Foreground="#315D84" Content="Cho phép gửi số liệu thống kê kho rút gọn tới Gemini"
-                                      TextBlock.TextWrapping="Wrap"/>
+                                      />
                             <CheckBox x:Name="SpeakAnswerCheck" FontSize="11.5" Foreground="#315D84"
                                       Content="Đọc câu trả lời bằng giọng Windows" IsChecked="False"/>
                             <TextBlock Margin="0,12,0,0" Foreground="#476D8C" FontSize="10.5" TextWrapping="Wrap"
