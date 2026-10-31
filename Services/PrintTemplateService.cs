@@ -14,13 +14,21 @@ public static class PrintTemplateService
     public static PrintTemplate Get(InventoryState state, string type)
     {
         EnsureDefaults(state);
-        return state.PrintTemplates.First(template => template.Type.Equals(type, StringComparison.OrdinalIgnoreCase));
+        return state.PrintTemplates.FirstOrDefault(template => template.Type.Equals(type, StringComparison.OrdinalIgnoreCase))
+            ?? CreateDefaults().FirstOrDefault(template => template.Type.Equals(type, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Chưa cấu hình mẫu in cho loại phiếu {type}.");
     }
 
     public static void EnsureDefaults(InventoryState state)
     {
         state.PrintTemplates ??= [];
-        foreach (var template in CreateDefaults())
-            if (!state.PrintTemplates.Any(existing => existing.Type.Equals(template.Type, StringComparison.OrdinalIgnoreCase))) state.PrintTemplates.Add(template);
+        if (state.PrintTemplatesConfigured) return;
+        if (state.PrintTemplates.Count == 0)
+            state.PrintTemplates.AddRange(CreateDefaults());
+        else
+            foreach (var template in CreateDefaults())
+                if (!state.PrintTemplates.Any(existing => existing.Type.Equals(template.Type, StringComparison.OrdinalIgnoreCase)))
+                    state.PrintTemplates.Add(template);
+        state.PrintTemplatesConfigured = true;
     }
 }
