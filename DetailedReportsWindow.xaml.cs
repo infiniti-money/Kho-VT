@@ -86,7 +86,7 @@ public partial class DetailedReportsWindow : Window
     private void Export_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.SaveFileDialog { Title = "Xuất báo cáo chi tiết", Filter = "Sổ Excel (*.xlsx)|*.xlsx", FileName = $"Bao-cao-kho-{DateTime.Today:yyyyMMdd}.xlsx" };
-        if (dialog.ShowDialog(this) != true) return;
+        if (dialog.ShowDialog(Application.Current.MainWindow) != true) return;
         try
         {
             var departmentBySku = _state.Products.ToDictionary(item => item.Sku, item => item.Department, StringComparer.OrdinalIgnoreCase);
