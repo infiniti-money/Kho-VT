@@ -22,6 +22,8 @@ public partial class AiAssistantWindow : Window
     private bool _busy;
 
     public ObservableCollection<AiChatMessage> ChatMessages { get; } = [];
+    // Open the existing human-reviewed replenishment form, never apply changes from AI.
+    public Action? OpenReplenishment { get; set; }
 
     public AiAssistantWindow(InventoryState state)
     {
@@ -69,6 +71,12 @@ public partial class AiAssistantWindow : Window
             ActivityStatus.Text = "Đã xóa khóa Gemini được lưu trong Windows.";
         }
         catch (Exception ex) { ActivityStatus.Text = "Không xóa được khóa: " + ex.Message; }
+    }
+
+    private void ReviewProposals_Click(object sender, RoutedEventArgs e)
+    {
+        if (_busy) { ActivityStatus.Text = "Hãy chờ Gemini trả lời trước khi mở phiếu."; return; }
+        OpenReplenishment?.Invoke();
     }
 
     private void LocalReport_Click(object sender, RoutedEventArgs e)
