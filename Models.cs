@@ -21,6 +21,7 @@ public sealed class InventoryState
     public ObservableCollection<PendingMovement> PendingMovements { get; set; } = [];
     public ObservableCollection<MaterialRequest> MaterialRequests { get; set; } = [];
     public List<PrintTemplate> PrintTemplates { get; set; } = [];
+    public string PrimaryExcelPath { get; set; } = "";
     public string ReferencePath { get; set; } = "";
     public SourceAudit SourceAudit { get; set; } = new();
 }
