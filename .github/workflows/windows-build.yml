@@ -37,6 +37,9 @@ jobs:
       - name: Smoke test offline updater and safe file replacement
         run: dotnet run --project Updater/HisaUpdater.csproj --configuration Release -- --self-test
 
+      - name: Test single-active-workspace navigation
+        run: dotnet run --project tests/WorkspaceNavigation.SmokeTests/WorkspaceNavigation.SmokeTests.csproj --configuration Release --nologo
+
       - name: Publish self-contained Windows application
         run: dotnet publish HisaWarehouse.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=false --output publish-reconciled --nologo
 

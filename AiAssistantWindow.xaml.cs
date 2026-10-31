@@ -75,7 +75,9 @@ public partial class AiAssistantWindow : Window
 
     private void ReviewProposals_Click(object sender, RoutedEventArgs e)
     {
-        if (_busy) { ActivityStatus.Text = "Hãy chờ Gemini trả lời trước khi mở phiếu."; return; }
+        // Explicit navigation: close and release AI/microphone resources BEFORE
+        // opening another form, rather than stacking it on top of the assistant.
+        if (!TryCloseAssistant()) return;
         OpenReplenishment?.Invoke();
     }
 
@@ -228,12 +230,14 @@ public partial class AiAssistantWindow : Window
     private void ScrollToBottom() =>
         Dispatcher.BeginInvoke(() => ChatScroller.ScrollToEnd(), DispatcherPriority.Background);
 
-    private void Close_Click(object sender, RoutedEventArgs e)
+    private void Close_Click(object sender, RoutedEventArgs e) => TryCloseAssistant();
+
+    private bool TryCloseAssistant()
     {
         if (_busy)
         {
             ActivityStatus.Text = "Đang đợi Gemini trả lời; hãy đợi trước khi đóng trang.";
-            return;
+            return false;
         }
         try { _microphone?.RecognizeAsyncCancel(); }
         catch { /* Already stopped. */ }
@@ -243,5 +247,6 @@ public partial class AiAssistantWindow : Window
         _speaker?.Dispose();
         _speaker = null;
         this.CompleteEmbedded(false);
+        return true;
     }
 }

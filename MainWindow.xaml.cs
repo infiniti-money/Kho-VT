@@ -391,13 +391,25 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowToast("Không thể lưu: " + ex.Message); return false; }
     }
 
+    private bool CanOpenAnotherPage()
+    {
+        if (WorkspaceNavigationPolicy.CanOpenRootPage(_currentEmbeddedPage is not null)) return true;
+        ShowToast($"Trang «{_currentEmbeddedPage!.Title}» vẫn đang mở. Vui lòng đóng trang này trước khi mở trang khác.");
+        return false;
+    }
+
+    private void HideStandardPages()
+    {
+        DashboardPage.Visibility = Visibility.Collapsed;
+        InventoryPage.Visibility = Visibility.Collapsed;
+        AuditPage.Visibility = Visibility.Collapsed;
+        LabelsPage.Visibility = Visibility.Collapsed;
+        SettingsPage.Visibility = Visibility.Collapsed;
+    }
+
     private void NavigateTo(string page)
     {
-        if (_currentEmbeddedPage is not null)
-        {
-            ShowToast("Đóng trang đang thao tác trước khi chuyển mục.");
-            return;
-        }
+        if (!CanOpenAnotherPage()) return;
         _currentPage = page;
         DashboardPage.Visibility = page == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
         InventoryPage.Visibility = page == "inventory" ? Visibility.Visible : Visibility.Collapsed;
@@ -419,8 +431,20 @@ public partial class MainWindow : Window
         if (page == "dashboard") _ = UpdateChartsAsync();
     }
 
-    private void ShowEmbeddedPage(Window window, string title, string subtitle, Action<bool>? completion = null)
+    private void ShowEmbeddedPage(Window window, string title, string subtitle,
+        Action<bool>? completion = null, bool isChildOfCurrentPage = false)
     {
+        // Main navigation must never push a second unrelated page over the current one.
+        // Only explicit child actions inside the currently visible form may temporarily
+        // replace its content. Closing that child restores the original form.
+        if (isChildOfCurrentPage)
+        {
+            if (!WorkspaceNavigationPolicy.CanOpenRequestEditor(
+                    _currentEmbeddedPage?.Source is MaterialRequestsWindow, _embeddedPageStack.Count))
+                throw new InvalidOperationException("Chỉ có thể mở phiếu con từ trang Yêu cầu vật tư đang hiển thị.");
+        }
+        else if (!CanOpenAnotherPage()) return;
+
         if (window.Content is not FrameworkElement content)
             throw new InvalidOperationException($"Trang {window.Title} chưa có nội dung để hiển thị.");
         if (_currentEmbeddedPage is null) _embeddedReturnPage = _currentPage;
@@ -433,9 +457,17 @@ public partial class MainWindow : Window
         window.Content = null;
         window.Tag = new Action<bool>(accepted => CompleteEmbeddedPage(window, accepted, completion));
         _currentEmbeddedPage = new EmbeddedPageEntry(window, content, title, subtitle);
+        HideStandardPages(); // No background page remains visible under the editor.
         EmbeddedPageHost.Content = content;
         EmbeddedPageHost.Visibility = Visibility.Visible;
         UpdateEmbeddedBreadcrumb(title, subtitle);
+    }
+
+    private void ShowRequestEditorChild(Window child, Action<bool> completion)
+    {
+        ShowEmbeddedPage(child, "Lập phiếu yêu cầu",
+            "Nhập thông tin vật tư cần cấp hoặc cần nhập", completion,
+            isChildOfCurrentPage: true);
     }
 
     private void CompleteEmbeddedPage(Window window, bool accepted, Action<bool>? completion)
@@ -496,8 +528,7 @@ public partial class MainWindow : Window
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) => OpenReplenishment();
     private void NavAi_Click(object sender, RoutedEventArgs e)
     {
-        if (_state is null) return;
-        if (_currentEmbeddedPage is not null) return;
+        if (_state is null || !CanOpenAnotherPage()) return;
         var assistant = new AiAssistantWindow(State)
         {
             OpenReplenishment = () => OpenReplenishment()
@@ -509,6 +540,7 @@ public partial class MainWindow : Window
 
     private void NavQuickSearch_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new QuickSearchWindow(State);
         ShowEmbeddedPage(page, "Tìm kiếm nhanh", "Tìm mã, barcode, tên vật tư và lập phiếu từ kết quả", accepted =>
         {
@@ -520,6 +552,7 @@ public partial class MainWindow : Window
 
     private void NavNegativeStock_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new NegativeStockWindow(State);
         ShowEmbeddedPage(page, "Cảnh báo tồn âm", "Kiểm tra số âm theo từng mã và từng kho", accepted =>
         {
@@ -533,6 +566,7 @@ public partial class MainWindow : Window
 
     private void OpenReplenishment()
     {
+        if (!CanOpenAnotherPage()) return;
         if (_state is null) return;
         var page = new ReplenishmentWindow(State);
         ShowEmbeddedPage(page, "Đề xuất nhập kho", "Rà soát mức tồn tối thiểu và tạo yêu cầu bổ sung có kiểm soát", accepted =>
@@ -545,9 +579,10 @@ public partial class MainWindow : Window
 
     private async Task OpenMaterialRequestsAsync()
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new MaterialRequestsWindow(State)
         {
-            OpenChildPage = (child, completed) => ShowEmbeddedPage(child, "Lập phiếu yêu cầu", "Nhập thông tin vật tư cần cấp hoặc cần nhập", completed)
+            OpenChildPage = ShowRequestEditorChild
         };
         ShowEmbeddedPage(page, "Yêu cầu vật tư", "Tạo và quản lý phiếu yêu cầu cấp hoặc nhập vật tư", accepted =>
         {
@@ -559,6 +594,7 @@ public partial class MainWindow : Window
 
     private async Task OpenPrintTemplatesAsync()
     {
+        if (!CanOpenAnotherPage()) return;
         PrintTemplateService.EnsureDefaults(State);
         var page = new PrintTemplateWindow(State.PrintTemplates);
         ShowEmbeddedPage(page, "Mẫu in phiếu", "Chỉnh sửa tiêu đề, nội dung và chữ ký trên phiếu", accepted =>
@@ -631,6 +667,7 @@ public partial class MainWindow : Window
 
     private async void CheckReference_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenAnotherPage()) return;
         State.ReferencePath = ReferencePathBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(State.ReferencePath))
         {
@@ -691,6 +728,7 @@ public partial class MainWindow : Window
 
     private async Task OpenCatalogsAsync()
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new CatalogsWindow(State);
         ShowEmbeddedPage(page, "Quản lý danh mục", "Kho hàng, đơn vị tính, bộ phận và nơi giao nhận", accepted =>
         {
@@ -720,6 +758,7 @@ public partial class MainWindow : Window
 
     private async Task OpenMovementAsync(string? initialSku = null, string? initialType = null, string? initialWarehouse = null)
     {
+        if (!CanOpenAnotherPage()) return;
         if (_state is null) return;
         var page = new MovementWindow(State, initialSku, initialType, initialWarehouse);
         ShowEmbeddedPage(page, "Nhập & Xuất kho", "Lập phiếu nhập, xuất hoặc điều chuyển; có thể lưu chờ xác nhận", accepted =>
@@ -824,6 +863,7 @@ public partial class MainWindow : Window
 
     private async Task OpenPendingMovementsAsync()
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new PendingMovementsWindow(State.PendingMovements);
         ShowEmbeddedPage(page, "Phiếu chờ xác nhận", "Rà soát phiếu nhập, xuất và điều chuyển trước khi cập nhật tồn kho", accepted =>
         {
@@ -898,6 +938,7 @@ public partial class MainWindow : Window
 
     private void AddItem_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new ItemEditorWindow(State, null, ValidateItemSku);
         ShowEmbeddedPage(page, "Thêm vật tư", "Khai báo SKU, hình ảnh, đơn vị và tồn ban đầu theo từng kho", accepted =>
         {
@@ -1007,6 +1048,7 @@ public partial class MainWindow : Window
 
     private void EditItem(InventoryItem item)
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new ItemEditorWindow(State, item, ValidateItemSku);
         ShowEmbeddedPage(page, "Chỉnh sửa vật tư", "Cập nhật thông tin, ảnh minh họa và tồn theo từng kho", accepted =>
         {
@@ -1096,6 +1138,7 @@ public partial class MainWindow : Window
 
     private async void ManageUnits_Click(object sender, RoutedEventArgs e)
     {
+        if (!CanOpenAnotherPage()) return;
         var page = new ManageUnitsWindow(State.Units, State.Products);
         ShowEmbeddedPage(page, "Quản lý đơn vị tính", "Thêm, sửa hoặc gộp đơn vị đang dùng", accepted =>
         {
