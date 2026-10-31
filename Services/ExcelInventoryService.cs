@@ -188,8 +188,8 @@ public static class ExcelInventoryService
                 int FindColumn(params string[] options) => headings.Select((name, index) => (name, index))
                     .Where(pair => options.Any(option => pair.name.Equals(option, StringComparison.OrdinalIgnoreCase)))
                     .Select(pair => pair.index + 1).FirstOrDefault();
-                var skuColumn = FindColumn("Mã SKU", "Mã hàng", "SKU", "Mã sản phẩm");
-                var quantityColumn = FindColumn("Tồn thực tế", "Số lượng thực tế", "Tồn hiện tại", "Tồn cuối", "Số lượng tồn", "Tồn");
+                var skuColumn = FindColumn("Mã SKU", "Mã hàng", "SKU", "Mã sản phẩm", "Mã vật tư");
+                var quantityColumn = FindColumn("Tồn thực tế", "Số lượng thực tế", "Tồn hiện tại", "Tồn cuối", "Số lượng tồn", "Tồn", "Số lượng", "SL thực tế", "SL");
                 if (skuColumn == 0 || quantityColumn == 0) continue;
                 var nameColumn = FindColumn("Tên vật tư", "Tên hàng", "Tên sản phẩm");
                 var unitColumn = FindColumn("Đơn vị tính", "Đơn vị", "ĐVT");
