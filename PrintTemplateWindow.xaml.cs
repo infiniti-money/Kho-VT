@@ -72,7 +72,10 @@ public partial class PrintTemplateWindow : Window
             try { SaveEditor(); }
             catch (Exception ex)
             {
-                EditorStatus.Text = ex.Message + " (hãy sửa lại trước khi lưu).";
+                _loading = true;
+                TypeBox.SelectedItem = _current.Type;
+                _loading = false;
+                EditorStatus.Text = ex.Message + " (hãy sửa lại trước khi chuyển mẫu).";
                 return;
             }
         }
