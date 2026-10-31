@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private sealed record EmbeddedPageEntry(Window Source, FrameworkElement Content, string Title, string Subtitle);
 
     private InventoryState? _state;
+    private DetailedReportsWindow? _detailedReportPage;
     private CoreWebView2Environment? _webViewEnvironment;
     private string _currentPage = "dashboard";
     private string _trendUnit = "*";
@@ -40,6 +41,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = this;
         UpdateStatusText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Chưa kiểm tra bản phát hành mới.";
+        SystemInfoText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Windows x64 · HISA Kho-VT";
         _toastTimer.Tick += (_, _) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         EmbeddedWindowNavigation.NotificationRequested += ShowToast;
         Closed += (_, _) => EmbeddedWindowNavigation.NotificationRequested -= ShowToast;
@@ -393,17 +395,43 @@ public partial class MainWindow : Window
 
     private bool CanOpenAnotherPage()
     {
-        if (WorkspaceNavigationPolicy.CanOpenRootPage(_currentEmbeddedPage is not null)) return true;
-        ShowToast($"Trang «{_currentEmbeddedPage!.Title}» vẫn đang mở. Vui lòng đóng trang này trước khi mở trang khác.");
-        return false;
+        // Background operations must not silently replace an active editor.
+        return _currentEmbeddedPage is null;
+    }
+
+    private void RequestRootNavigation(Action open)
+    {
+        if (_currentEmbeddedPage is null)
+        {
+            open();
+            return;
+        }
+
+        // Read-only pages are replaced immediately. Editors require a single
+        // confirmation so users cannot accidentally lose uncommitted input.
+        var editor = _currentEmbeddedPage.Source;
+        var mayHaveChanges = editor is MovementWindow or ItemEditorWindow
+            or MaterialRequestEditorWindow or PrintTemplateWindow or CatalogsWindow
+            or ManageUnitsWindow or ReplenishmentWindow;
+        void Switch()
+        {
+            // Unwind the explicit request-editor child as well as its parent.
+            // Completions receive false, so no unapplied edits get saved.
+            while (_currentEmbeddedPage is not null)
+                _currentEmbeddedPage.Source.CompleteEmbedded(false);
+            open();
+        }
+        if (mayHaveChanges)
+            ConfirmInApp("Trang hiện tại có thể có dữ liệu chưa lưu. Chuyển trang và bỏ các thay đổi chưa lưu?",
+                accepted => { if (accepted) Switch(); }, "Chuyển trang", "Ở lại");
+        else Switch();
     }
 
     private void HideStandardPages()
     {
         DashboardPage.Visibility = Visibility.Collapsed;
-        InventoryPage.Visibility = Visibility.Collapsed;
-        AuditPage.Visibility = Visibility.Collapsed;
-        LabelsPage.Visibility = Visibility.Collapsed;
+        InventoryWorkspaceTabs.Visibility = Visibility.Collapsed;
+        AuditReportTabs.Visibility = Visibility.Collapsed;
         SettingsPage.Visibility = Visibility.Collapsed;
     }
 
@@ -412,14 +440,21 @@ public partial class MainWindow : Window
         if (!CanOpenAnotherPage()) return;
         _currentPage = page;
         DashboardPage.Visibility = page == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
-        InventoryPage.Visibility = page == "inventory" ? Visibility.Visible : Visibility.Collapsed;
-        AuditPage.Visibility = page == "audit" ? Visibility.Visible : Visibility.Collapsed;
-        LabelsPage.Visibility = page == "labels" ? Visibility.Visible : Visibility.Collapsed;
+        InventoryWorkspaceTabs.Visibility = page is "inventory" or "labels" ? Visibility.Visible : Visibility.Collapsed;
+        if (page == "inventory") InventoryWorkspaceTabs.SelectedIndex = 0;
+        if (page == "labels") InventoryWorkspaceTabs.SelectedIndex = 1;
+        AuditReportTabs.Visibility = page is "reports" or "audit" ? Visibility.Visible : Visibility.Collapsed;
+        if (page is "reports" or "audit")
+        {
+            EnsureDetailedReportTab();
+            if (page == "audit") AuditReportTabs.SelectedIndex = 0;
+        }
         SettingsPage.Visibility = page == "settings" ? Visibility.Visible : Visibility.Collapsed;
         var pageDetails = page switch
         {
             "inventory" => ("Danh mục tồn kho", "Tìm kiếm, phân loại, cập nhật số dư và quản lý SKU"),
             "audit" => ("Nhật ký giao dịch", "Tra cứu chứng từ, luồng hàng và người thực hiện"),
+            "reports" => ("Báo cáo & nhật ký", "Tra cứu lịch sử, lọc nâng cao và xuất báo cáo Excel"),
             "labels" => ("Tem & mã vạch", "Tạo nhãn SKU và in theo lô"),
             "settings" => ("Sao lưu & dữ liệu", "Thông tin nguồn và phục hồi dữ liệu ứng dụng"),
             "movement" => ("Nhập & Xuất kho", "Ghi nhận giao nhận và điều chuyển vật tư"),
@@ -429,6 +464,16 @@ public partial class MainWindow : Window
         BreadcrumbSubtitle.Text = pageDetails.Item2;
         SetNavState();
         if (page == "dashboard") _ = UpdateChartsAsync();
+    }
+
+    private void EnsureDetailedReportTab()
+    {
+        if (_state is null || _detailedReportPage is not null) return;
+        _detailedReportPage = new DetailedReportsWindow(State) { Owner = this };
+        var view = _detailedReportPage.Content;
+        _detailedReportPage.Content = null;
+        _detailedReportPage.Tag = new Action<bool>(_ => AuditReportTabs.SelectedIndex = 0);
+        ReportDetailHost.Content = view;
     }
 
     private void ShowEmbeddedPage(Window window, string title, string subtitle,
@@ -501,7 +546,7 @@ public partial class MainWindow : Window
         // Behave like an accordion. Expanding a different group only changes
         // the menu, not the active work page or any unsaved form.
         if (!IsLoaded || sender is not Expander opened) return;
-        foreach (var group in new[] { NavGroupStock, NavGroupDocuments, NavGroupReports, NavGroupSystem })
+        foreach (var group in new[] { NavGroupStock, NavGroupDocuments, NavGroupProposals, NavGroupReports, NavGroupSystem })
             if (!ReferenceEquals(group, opened)) group.IsExpanded = false;
     }
 
@@ -526,8 +571,8 @@ public partial class MainWindow : Window
             {
                 "dashboard" => "NavDashboard",
                 "inventory" => "NavInventory",
-                "audit" => "NavAudit",
-                "labels" => "NavLabels",
+                "audit" or "reports" => "NavReports",
+                "labels" => "NavInventory",
                 "settings" => "NavSettings",
                 _ => "NavDashboard"
             }
@@ -551,6 +596,7 @@ public partial class MainWindow : Window
             {
                 SidebarModuleGroups.Stock => NavGroupStock,
                 SidebarModuleGroups.Documents => NavGroupDocuments,
+                SidebarModuleGroups.Proposals => NavGroupProposals,
                 SidebarModuleGroups.Reports => NavGroupReports,
                 SidebarModuleGroups.System => NavGroupSystem,
                 _ => null
@@ -559,17 +605,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private void NavDashboard_Click(object sender, RoutedEventArgs e) => NavigateTo("dashboard");
-    private void NavInventory_Click(object sender, RoutedEventArgs e) => NavigateTo("inventory");
-    private void NavAudit_Click(object sender, RoutedEventArgs e) => NavigateTo("audit");
-    private void NavLabels_Click(object sender, RoutedEventArgs e) => NavigateTo("labels");
-    private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo("settings");
-    private async void NavMovement_Click(object sender, RoutedEventArgs e) => await OpenMovementAsync();
-    private async void QuickMovement_Click(object sender, RoutedEventArgs e) => await OpenMovementAsync();
-    private async void NavPending_Click(object sender, RoutedEventArgs e) => await OpenPendingMovementsAsync();
-    private async void NavRequests_Click(object sender, RoutedEventArgs e) => await OpenMaterialRequestsAsync();
-    private void NavReplenishment_Click(object sender, RoutedEventArgs e) => OpenReplenishment();
-    private void NavAi_Click(object sender, RoutedEventArgs e)
+    private void NavDashboard_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("dashboard"));
+    private void NavInventory_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("inventory"));
+    private void NavAudit_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("reports"));
+    private void NavLabels_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("labels"));
+    private void NavSettings_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("settings"));
+    private void NavMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
+    private void QuickMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
+    private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
+    private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
+    private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
+    private void NavAi_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenAiAssistant);
+
+    private void OpenAiAssistant()
     {
         if (_state is null || !CanOpenAnotherPage()) return;
         var assistant = new AiAssistantWindow(State)
@@ -579,9 +627,12 @@ public partial class MainWindow : Window
         ShowEmbeddedPage(assistant, "Trợ lý AI Gemini",
             "Trò chuyện, báo cáo tồn kho theo tuần và tháng, mic và phản hồi bằng âm thanh");
     }
-    private async void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => await OpenPrintTemplatesAsync();
+    private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 
-    private void NavQuickSearch_Click(object sender, RoutedEventArgs e)
+    private void NavQuickSearch_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(OpenQuickSearch);
+
+    private void OpenQuickSearch()
     {
         if (!CanOpenAnotherPage()) return;
         var page = new QuickSearchWindow(State);
@@ -593,7 +644,10 @@ public partial class MainWindow : Window
         });
     }
 
-    private void NavNegativeStock_Click(object sender, RoutedEventArgs e)
+    private void NavNegativeStock_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(OpenNegativeStock);
+
+    private void OpenNegativeStock()
     {
         if (!CanOpenAnotherPage()) return;
         var page = new NegativeStockWindow(State);
@@ -603,9 +657,12 @@ public partial class MainWindow : Window
         });
     }
 
-    private void NavCatalogs_Click(object sender, RoutedEventArgs e) => _ = OpenCatalogsAsync();
-    private void NavReports_Click(object sender, RoutedEventArgs e) => ShowEmbeddedPage(new DetailedReportsWindow(State), "Báo cáo chi tiết", "Tra cứu nhật ký theo ngày, loại giao dịch, kho và SKU");
-    private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) => ShowEmbeddedPage(new SoftwareInfoWindow(), "Thông tin phần mềm", "Thông tin liên hệ và tác giả");
+    private void NavCatalogs_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenCatalogsAsync());
+    private void NavReports_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => NavigateTo("reports"));
+    private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => NavigateTo("settings"));
 
     private void OpenReplenishment()
     {
@@ -1223,12 +1280,14 @@ public partial class MainWindow : Window
         var first = records.First();
         var template = PrintTemplateService.Get(State, first.Type);
         var flow = NewPrintDocument();
+        PrintTemplateLayout.Apply(flow, template);
         AddTemplateHeading(flow, template);
         AddMetadata(flow, "Số phiếu", first.DocNo, "Ngày", first.Date?.ToString("dd/MM/yyyy") ?? "—");
         AddMetadata(flow, "Kho", first.Type == "Nhập" ? first.ToWarehouse ?? first.Warehouse : first.Warehouse, first.Type == "Điều chuyển" ? "Kho nhận" : first.Type == "Nhập" ? "Nhà cung cấp" : "Nơi nhận", first.Type == "Điều chuyển" ? first.ToWarehouse ?? "" : first.Partner);
         AddMetadata(flow, "Người thực hiện", first.Operator, "Chứng từ tham chiếu", first.ReferenceNo);
         flow.Blocks.Add(new Paragraph(new Run(" ")) { Margin = new Thickness(0, 2, 0, 2) });
         var table = CreateSlipTable(records);
+        PrintTemplateLayout.ApplyTableCellPadding(table, template);
         flow.Blocks.Add(table);
         flow.Blocks.Add(new Paragraph(new Run("Ghi chú: " + first.Note + (string.IsNullOrWhiteSpace(template.FooterNote) ? "" : $"\n{template.FooterNote}"))) { Margin = new Thickness(0, 12, 0, 0), FontSize = 10 });
         flow.Blocks.Add(CreateSignatureBlock(template));
@@ -1239,13 +1298,16 @@ public partial class MainWindow : Window
     {
         var template = PrintTemplateService.Get(State, request.Type);
         var flow = NewPrintDocument();
+        PrintTemplateLayout.Apply(flow, template);
         AddTemplateHeading(flow, template);
         AddMetadata(flow, "Số yêu cầu", request.DocNo, "Ngày yêu cầu", request.Date.ToString("dd/MM/yyyy"));
         AddMetadata(flow, "Bộ phận", request.Department, "Cần trước ngày", request.NeededBy?.ToString("dd/MM/yyyy") ?? "—");
         if (!string.IsNullOrWhiteSpace(request.Warehouse)) AddMetadata(flow, "Kho đề xuất", request.Warehouse, "Trạng thái", request.Status);
         AddMetadata(flow, request.Type == "Yêu cầu cấp vật tư" ? "Người nhận" : "Nhà cung cấp", request.Recipient, "Người yêu cầu", request.Requester);
         var records = request.Lines.Select(line => new InventoryTransaction { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList();
-        flow.Blocks.Add(CreateSlipTable(records));
+        var requestTable = CreateSlipTable(records);
+        PrintTemplateLayout.ApplyTableCellPadding(requestTable, template);
+        flow.Blocks.Add(requestTable);
         flow.Blocks.Add(new Paragraph(new Run($"Lý do / ghi chú: {request.Note}" + (string.IsNullOrWhiteSpace(template.FooterNote) ? "" : $"\n{template.FooterNote}"))) { Margin = new Thickness(0, 12, 0, 0), FontSize = 10 });
         flow.Blocks.Add(CreateSignatureBlock(template));
         ShowPrintDialog(flow, request.DocNo);
@@ -1254,10 +1316,10 @@ public partial class MainWindow : Window
     private static void AddTemplateHeading(FlowDocument flow, PrintTemplate template)
     {
         if (!string.IsNullOrWhiteSpace(template.Organization))
-            flow.Blocks.Add(new Paragraph(new Run(template.Organization)) { TextAlignment = TextAlignment.Center, FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) });
+            flow.Blocks.Add(new Paragraph(new Run(template.Organization)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) });
         if (!string.IsNullOrWhiteSpace(template.HeaderNote))
-            flow.Blocks.Add(new Paragraph(new Run(template.HeaderNote)) { TextAlignment = TextAlignment.Center, FontSize = 10, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 15) });
-        flow.Blocks.Add(new Paragraph(new Run(template.Title)) { TextAlignment = TextAlignment.Center, FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
+            flow.Blocks.Add(new Paragraph(new Run(template.HeaderNote)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = 10, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 15) });
+        flow.Blocks.Add(new Paragraph(new Run(template.Title)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = template.FontSize + 8, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
     }
 
     private static FlowDocument NewPrintDocument() => new()
@@ -1369,8 +1431,14 @@ public partial class MainWindow : Window
 
     private void ShowPrintDialog(FlowDocument flow, string description)
     {
-        var dialog = new PrintDialog();
-        if (dialog.ShowDialog() == true) dialog.PrintDocument(((IDocumentPaginatorSource)flow).DocumentPaginator, description);
+        var page = new PrintPreviewWindow(flow, description);
+        if (_currentEmbeddedPage?.Source is MaterialRequestsWindow && _embeddedPageStack.Count == 0)
+            ShowEmbeddedPage(page, "Xem trước phiếu in", "Kiểm tra bố cục rồi chọn In phiếu",
+                isChildOfCurrentPage: true);
+        else if (_currentEmbeddedPage is null)
+            ShowEmbeddedPage(page, "Xem trước phiếu in", "Kiểm tra bố cục rồi chọn In phiếu");
+        else
+            ShowToast("Vui lòng hoàn tất thao tác hiện tại trước khi xem trước phiếu in.");
     }
 
     private void ExportBackup_Click(object sender, RoutedEventArgs e)

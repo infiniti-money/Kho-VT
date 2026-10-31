@@ -21,6 +21,7 @@ public sealed class InventoryState
     public ObservableCollection<PendingMovement> PendingMovements { get; set; } = [];
     public ObservableCollection<MaterialRequest> MaterialRequests { get; set; } = [];
     public List<PrintTemplate> PrintTemplates { get; set; } = [];
+    public bool PrintTemplatesConfigured { get; set; }
     public string PrimaryExcelPath { get; set; } = "";
     public string ReferencePath { get; set; } = "";
     public SourceAudit SourceAudit { get; set; } = new();
@@ -183,6 +184,11 @@ public sealed class PrintTemplate
     public string Signer1 { get; set; } = "NGƯỜI GIAO";
     public string Signer2 { get; set; } = "NGƯỜI NHẬN";
     public string Signer3 { get; set; } = "THỦ KHO";
+    public string FontName { get; set; } = "Arial";
+    public double FontSize { get; set; } = 10;
+    public double MarginMm { get; set; } = 15;
+    public double CellPadding { get; set; } = 5;
+    public string HeaderAlignment { get; set; } = "Center";
 }
 
 public sealed class ChartPayload

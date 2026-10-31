@@ -137,21 +137,21 @@
                             <Button x:Name="NavInventory" Style="{StaticResource NavButton}" Click="NavInventory_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="▤" Width="28" FontSize="16"/><TextBlock Text="Danh sách vật tư" VerticalAlignment="Center"/></StackPanel>
                             </Button>
-                            <Button x:Name="NavQuickSearch" Style="{StaticResource NavButton}" Click="NavQuickSearch_Click">
+                            <Button x:Name="NavQuickSearch" Visibility="Collapsed" Style="{StaticResource NavButton}" Click="NavQuickSearch_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="⌕" Width="28" FontSize="20"/><TextBlock Text="Tra cứu vật tư" VerticalAlignment="Center"/></StackPanel>
                             </Button>
-                            <Button x:Name="NavNegativeStock" Style="{StaticResource NavButton}" Click="NavNegativeStock_Click">
+                            <Button x:Name="NavNegativeStock" Visibility="Collapsed" Style="{StaticResource NavButton}" Click="NavNegativeStock_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="!" Width="28" FontSize="16"/><TextBlock Text="Cảnh báo tồn kho" VerticalAlignment="Center"/></StackPanel>
                             </Button>
-                            <Button x:Name="NavLabels" Style="{StaticResource NavButton}" Click="NavLabels_Click">
+                            <Button x:Name="NavLabels" Visibility="Collapsed" Style="{StaticResource NavButton}" Click="NavLabels_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="▥" Width="28" FontSize="17"/><TextBlock Text="Tem &amp; mã vạch" VerticalAlignment="Center"/></StackPanel>
                             </Button>
-                            <Button x:Name="NavCatalogs" Style="{StaticResource NavButton}" Click="NavCatalogs_Click">
+                            <Button x:Name="NavCatalogs" Visibility="Collapsed" Style="{StaticResource NavButton}" Click="NavCatalogs_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="☷" Width="28" FontSize="16"/><TextBlock Text="Kho, đơn vị &amp; bộ phận" VerticalAlignment="Center"/></StackPanel>
                             </Button>
                         </StackPanel>
                     </Expander>
-                    <Expander x:Name="NavGroupDocuments" Style="{StaticResource NavGroupExpander}" Header="PHIẾU &amp; NHẬP XUẤT" IsExpanded="False" Expanded="NavGroup_Expanded">
+                    <Expander x:Name="NavGroupDocuments" Style="{StaticResource NavGroupExpander}" Header="QUẢN LÝ PHIẾU" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
                             <Button x:Name="NavMovement" Style="{StaticResource NavButton}" Click="NavMovement_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="⇄" Width="28" FontSize="18"/><TextBlock Text="Nhập &amp; Xuất kho" VerticalAlignment="Center"/></StackPanel>
@@ -162,6 +162,10 @@
                             <Button x:Name="NavRequests" Style="{StaticResource NavButton}" Click="NavRequests_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="▧" Width="28" FontSize="16"/><TextBlock Text="Yêu cầu vật tư" VerticalAlignment="Center"/></StackPanel>
                             </Button>
+                        </StackPanel>
+                    </Expander>
+                    <Expander x:Name="NavGroupProposals" Style="{StaticResource NavGroupExpander}" Header="ĐỀ XUẤT &amp; MẪU IN" IsExpanded="False" Expanded="NavGroup_Expanded">
+                        <StackPanel>
                             <Button x:Name="NavReplenishment" Style="{StaticResource NavButton}" Click="NavReplenishment_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="↥" Width="28" FontSize="17"/><TextBlock Text="Đề xuất nhập kho" VerticalAlignment="Center"/></StackPanel>
                             </Button>
@@ -172,11 +176,11 @@
                     </Expander>
                     <Expander x:Name="NavGroupReports" Style="{StaticResource NavGroupExpander}" Header="BÁO CÁO &amp; TRỢ LÝ AI" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
-                            <Button x:Name="NavAudit" Style="{StaticResource NavButton}" Click="NavAudit_Click">
+                            <Button x:Name="NavAudit" Visibility="Collapsed" Style="{StaticResource NavButton}" Click="NavAudit_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="28" FontSize="17"/><TextBlock Text="Nhật ký giao dịch" VerticalAlignment="Center"/></StackPanel>
                             </Button>
                             <Button x:Name="NavReports" Style="{StaticResource NavButton}" Click="NavReports_Click">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="▧" Width="28" FontSize="16"/><TextBlock Text="Báo cáo chi tiết" VerticalAlignment="Center"/></StackPanel>
+                                <StackPanel Orientation="Horizontal"><TextBlock Text="▧" Width="28" FontSize="16"/><TextBlock Text="Báo cáo &amp; nhật ký" VerticalAlignment="Center"/></StackPanel>
                             </Button>
                             <Button x:Name="NavAi" Style="{StaticResource NavButton}" Click="NavAi_Click"
                                     Background="#194E69" Foreground="#F0FBFF" ToolTip="Trò chuyện Gemini và báo cáo kho">
@@ -187,9 +191,9 @@
                     <Expander x:Name="NavGroupSystem" Style="{StaticResource NavGroupExpander}" Header="HỆ THỐNG &amp; DỮ LIỆU" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
                             <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click">
-                                <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" Width="28" FontSize="15"/><TextBlock Text="Sao lưu &amp; dữ liệu" VerticalAlignment="Center"/></StackPanel>
+                                <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" Width="28" FontSize="15"/><TextBlock Text="Dữ liệu &amp; phần mềm" VerticalAlignment="Center"/></StackPanel>
                             </Button>
-                            <Button x:Name="NavSoftwareInfo" Style="{StaticResource NavButton}" Click="NavSoftwareInfo_Click">
+                            <Button x:Name="NavSoftwareInfo" Visibility="Collapsed" Style="{StaticResource NavButton}" Click="NavSoftwareInfo_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="ⓘ" Width="28" FontSize="15"/><TextBlock Text="Thông tin phần mềm" VerticalAlignment="Center"/></StackPanel>
                             </Button>
                         </StackPanel>
@@ -334,7 +338,9 @@
                     </Grid>
                 </Grid>
 
-                <Grid x:Name="InventoryPage" Margin="28,22,28,22" Visibility="Collapsed">
+                <TabControl x:Name="InventoryWorkspaceTabs" Margin="24,14,24,18" Visibility="Collapsed">
+                    <TabItem Header="Danh sách · Tra cứu · Cảnh báo">
+                <Grid x:Name="InventoryPage" Margin="4,10,4,10">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,17">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -373,15 +379,9 @@
                         </DataGrid>
                     </Border>
                 </Grid>
-
-                <Grid x:Name="AuditPage" Margin="28,22,28,22" Visibility="Collapsed">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Margin="0,0,0,17"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Nhật ký giao dịch" Foreground="#172B45" FontSize="21" FontWeight="Bold"/><TextBlock x:Name="AuditCountText" Text="Theo dõi phiếu, kho, nơi giao nhận và người thực hiện" Foreground="#78899E" FontSize="11" Margin="0,4,0,0"/></StackPanel><Button Grid.Column="1" Content="＋ Ghi nhận giao dịch" Style="{StaticResource PrimaryButton}" Click="QuickMovement_Click" VerticalAlignment="Center"/></Grid>
-                    <Border Grid.Row="1" Background="White" BorderBrush="#E3E9F1" BorderThickness="1" CornerRadius="10" Padding="11" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="1*"/><ColumnDefinition Width="1*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="AuditSearch" Style="{StaticResource SearchBox}" TextChanged="AuditFilter_Changed" ToolTip="Tìm mã hàng, số phiếu, nơi giao nhận hoặc người thực hiện"/><ComboBox x:Name="AuditTypeFilter" Grid.Column="1" Style="{StaticResource FilterCombo}" Margin="8,0,0,0" SelectionChanged="AuditFilter_Changed"><ComboBoxItem Content="Tất cả giao dịch" IsSelected="True"/><ComboBoxItem Content="Nhập"/><ComboBoxItem Content="Xuất"/><ComboBoxItem Content="Điều chuyển"/><ComboBoxItem Content="Điều chỉnh"/><ComboBoxItem Content="Chưa rõ"/></ComboBox><DatePicker x:Name="AuditDateFilter" Grid.Column="2" SelectedDateChanged="AuditFilter_Changed" Margin="8,0,0,0" VerticalContentAlignment="Center"/><Button Grid.Column="3" Content="Xóa ngày lọc" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="ClearAuditDate_Click"/></Grid></Border>
-                    <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0"><DataGrid x:Name="AuditGrid" Style="{StaticResource ProfessionalGrid}" IsReadOnly="True" ItemsSource="{Binding AuditRows}"><DataGrid.Columns><DataGridTextColumn Header="NGÀY" Binding="{Binding DateText}" Width="105"/><DataGridTextColumn Header="SỐ PHIẾU / NGUỒN" Binding="{Binding DocNo}" Width="140"/><DataGridTextColumn Header="LOẠI" Binding="{Binding Type}" Width="108"/><DataGridTextColumn Header="MÃ SKU" Binding="{Binding Sku}" Width="98"/><DataGridTextColumn Header="VẬT TƯ" Binding="{Binding ItemName}" Width="2*"/><DataGridTextColumn Header="SỐ LƯỢNG" Binding="{Binding QuantityText}" Width="95"/><DataGridTextColumn Header="KHO / NƠI NHẬN" Binding="{Binding LocationText}" Width="1.5*"/><DataGridTextColumn Header="NGƯỜI THỰC HIỆN" Binding="{Binding Operator}" Width="130"/></DataGrid.Columns></DataGrid></Border>
-                </Grid>
-
-                <Grid x:Name="LabelsPage" Margin="28,22,28,22" Visibility="Collapsed">
+                    </TabItem>
+                    <TabItem Header="Tem &amp; mã vạch">
+                <Grid x:Name="LabelsPage" Margin="4,10,4,10">
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,17"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Tem &amp; mã vạch" Foreground="#172B45" FontSize="21" FontWeight="Bold"/><TextBlock Text="Chọn nhiều mã hàng, xem trước và in tem Code 39" Foreground="#78899E" FontSize="11" Margin="0,4,0,0"/></StackPanel><Button Grid.Column="1" Content="In tem đã chọn" Style="{StaticResource PrimaryButton}" Click="PrintSelectedLabels_Click" VerticalAlignment="Center"/></Grid>
                     <Border Grid.Row="1" Background="White" BorderBrush="#E3E9F1" BorderThickness="1" CornerRadius="10" Padding="11" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="1*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="LabelSearch" Style="{StaticResource SearchBox}" TextChanged="LabelFilter_Changed" ToolTip="Tìm mã hoặc tên vật tư"/><ComboBox x:Name="LabelCategoryFilter" Grid.Column="1" Style="{StaticResource FilterCombo}" Margin="8,0,0,0" SelectionChanged="LabelFilter_Changed"/><Button Grid.Column="2" Content="Chọn tất cả đang lọc" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="SelectAllLabels_Click"/></Grid></Border>
@@ -390,11 +390,35 @@
                         <Border Grid.Column="2" Style="{StaticResource Panel}" Padding="16"><DockPanel><StackPanel DockPanel.Dock="Top" Margin="0,0,0,12"><TextBlock Text="XEM TRƯỚC TEM" Foreground="#172B45" FontSize="12" FontWeight="Bold"/><TextBlock x:Name="LabelSelectionText" Text="Chưa chọn mã hàng" Foreground="#78899E" FontSize="10" Margin="0,4,0,0"/></StackPanel><ScrollViewer VerticalScrollBarVisibility="Auto"><WrapPanel x:Name="LabelPreviewPanel" /></ScrollViewer></DockPanel></Border>
                     </Grid>
                 </Grid>
+                    </TabItem>
+                </TabControl>
+
+                <TabControl x:Name="AuditReportTabs" Margin="24,14,24,18" Visibility="Collapsed">
+                    <TabItem Header="Nhật ký giao dịch">
+                <Grid x:Name="AuditPage" Margin="4,10,4,10">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="0,0,0,17"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Nhật ký giao dịch" Foreground="#172B45" FontSize="21" FontWeight="Bold"/><TextBlock x:Name="AuditCountText" Text="Theo dõi phiếu, kho, nơi giao nhận và người thực hiện" Foreground="#78899E" FontSize="11" Margin="0,4,0,0"/></StackPanel><Button Grid.Column="1" Content="＋ Ghi nhận giao dịch" Style="{StaticResource PrimaryButton}" Click="QuickMovement_Click" VerticalAlignment="Center"/></Grid>
+                    <Border Grid.Row="1" Background="White" BorderBrush="#E3E9F1" BorderThickness="1" CornerRadius="10" Padding="11" Margin="0,0,0,12"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="1*"/><ColumnDefinition Width="1*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox x:Name="AuditSearch" Style="{StaticResource SearchBox}" TextChanged="AuditFilter_Changed" ToolTip="Tìm mã hàng, số phiếu, nơi giao nhận hoặc người thực hiện"/><ComboBox x:Name="AuditTypeFilter" Grid.Column="1" Style="{StaticResource FilterCombo}" Margin="8,0,0,0" SelectionChanged="AuditFilter_Changed"><ComboBoxItem Content="Tất cả giao dịch" IsSelected="True"/><ComboBoxItem Content="Nhập"/><ComboBoxItem Content="Xuất"/><ComboBoxItem Content="Điều chuyển"/><ComboBoxItem Content="Điều chỉnh"/><ComboBoxItem Content="Chưa rõ"/></ComboBox><DatePicker x:Name="AuditDateFilter" Grid.Column="2" SelectedDateChanged="AuditFilter_Changed" Margin="8,0,0,0" VerticalContentAlignment="Center"/><Button Grid.Column="3" Content="Xóa ngày lọc" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0" Click="ClearAuditDate_Click"/></Grid></Border>
+                    <Border Grid.Row="2" Style="{StaticResource Panel}" Padding="0"><DataGrid x:Name="AuditGrid" Style="{StaticResource ProfessionalGrid}" IsReadOnly="True" ItemsSource="{Binding AuditRows}"><DataGrid.Columns><DataGridTextColumn Header="NGÀY" Binding="{Binding DateText}" Width="105"/><DataGridTextColumn Header="SỐ PHIẾU / NGUỒN" Binding="{Binding DocNo}" Width="140"/><DataGridTextColumn Header="LOẠI" Binding="{Binding Type}" Width="108"/><DataGridTextColumn Header="MÃ SKU" Binding="{Binding Sku}" Width="98"/><DataGridTextColumn Header="VẬT TƯ" Binding="{Binding ItemName}" Width="2*"/><DataGridTextColumn Header="SỐ LƯỢNG" Binding="{Binding QuantityText}" Width="95"/><DataGridTextColumn Header="KHO / NƠI NHẬN" Binding="{Binding LocationText}" Width="1.5*"/><DataGridTextColumn Header="NGƯỜI THỰC HIỆN" Binding="{Binding Operator}" Width="130"/></DataGrid.Columns></DataGrid></Border>
+                </Grid>
+                    </TabItem>
+                    <TabItem Header="Báo cáo chi tiết" x:Name="DetailedReportTab">
+                        <ContentControl x:Name="ReportDetailHost"/>
+                    </TabItem>
+                </TabControl>
 
                 <ScrollViewer x:Name="SettingsPage" Margin="28,22,28,22" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <TextBlock Text="Sao lưu &amp; dữ liệu" Foreground="#172B45" FontSize="21" FontWeight="Bold" />
                         <TextBlock Text="Thông tin nguồn Excel, dữ liệu lưu cục bộ và công cụ phục hồi" Foreground="#78899E" FontSize="11" Margin="0,4,0,17" />
+                        <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Thông tin phần mềm" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock x:Name="SystemInfoText" Margin="0,8,0,5" Foreground="#4E6883" FontSize="12" TextWrapping="Wrap"/>
+                                <TextBlock Text="HISA Kho-VT · Phần mềm quản lý kho Windows · Tài liệu và bản phát hành tại github.com/infiniti-money/Kho-VT"
+                                           Foreground="#7A8BA0" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14" Padding="20">
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

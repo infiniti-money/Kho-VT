@@ -8,7 +8,7 @@ var buttons = document.Descendants().Where(el => el.Name.LocalName == "Button").
 var groups = document.Descendants().Where(el => el.Name.LocalName == "Expander")
     .Where(el => ((string?)el.Attribute(x + "Name"))?.StartsWith("NavGroup", StringComparison.Ordinal) == true)
     .ToList();
-if (groups.Count != 4) throw new InvalidOperationException($"Expected 4 groups, actual {groups.Count}.");
+if (groups.Count != 5) throw new InvalidOperationException($"Expected 5 groups, actual {groups.Count}.");
 
 foreach (var (nav, group) in SidebarModuleGroups.Membership)
 {
@@ -19,6 +19,27 @@ foreach (var (nav, group) in SidebarModuleGroups.Membership)
     if ((string?)ancestor?.Attribute(x + "Name") != group)
         throw new InvalidOperationException($"Navigation '{nav}' is in the wrong group.");
 }
+var hidden = new HashSet<string>(StringComparer.Ordinal) {
+    "NavQuickSearch", "NavNegativeStock", "NavLabels", "NavCatalogs", "NavAudit", "NavSoftwareInfo"
+};
+foreach (var nav in hidden)
+{
+    var button = buttons.Single(item => (string?)item.Attribute(x + "Name") == nav);
+    if ((string?)button.Attribute("Visibility") != "Collapsed")
+        throw new InvalidOperationException($"Duplicate menu '{nav}' is still visible.");
+}
+foreach (var nav in SidebarModuleGroups.Membership.Keys.Except(hidden))
+{
+    var button = buttons.Single(item => (string?)item.Attribute(x + "Name") == nav);
+    if ((string?)button.Attribute("Visibility") == "Collapsed")
+        throw new InvalidOperationException($"Main menu '{nav}' disappeared.");
+}
+
+var inventoryTabs = document.Descendants().Single(el => (string?)el.Attribute(x + "Name") == "InventoryWorkspaceTabs");
+var reportTabs = document.Descendants().Single(el => (string?)el.Attribute(x + "Name") == "AuditReportTabs");
+if (inventoryTabs.Elements().Count(el => el.Name.LocalName == "TabItem") != 2 ||
+    reportTabs.Elements().Count(el => el.Name.LocalName == "TabItem") != 2)
+    throw new InvalidOperationException("Unified inventory/report tab layout not found.");
 var dashboard = buttons.Single(btn => (string?)btn.Attribute(x + "Name") == "NavDashboard");
 if (dashboard.Ancestors().Any(el => el.Name.LocalName == "Expander"))
     throw new InvalidOperationException("Dashboard shortcut should stay outside all groups.");
@@ -35,4 +56,4 @@ if (!actual.SetEquals(expected))
     throw new InvalidOperationException("A navigation item was lost or duplicated in the grouping.");
 if (groups.Count(g => (string?)g.Attribute("IsExpanded") == "True") != 1)
     throw new InvalidOperationException("Exactly one module must be expanded on first launch.");
-Console.WriteLine($"PASS: {SidebarModuleGroups.Membership.Count} subpages are assigned once to 4 groups; dashboard remains accessible.");
+Console.WriteLine($"PASS: grouped navigation hides 6 duplicate pages and combines inventory/reports into tabs.");
