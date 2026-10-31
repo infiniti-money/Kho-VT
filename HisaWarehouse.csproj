@@ -12,6 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Keep smoke-test code out of the WPF application compilation. -->
+    <Compile Remove="tests\\**\\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
   </ItemGroup>
