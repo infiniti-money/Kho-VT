@@ -368,6 +368,7 @@ public partial class MainWindow : Window
         if (_state is null) return;
         var pendingCount = State.PendingMovements.Count(movement => movement.Status == "Chờ xác nhận");
         NavPendingText.Text = pendingCount == 0 ? "Phiếu chờ xác nhận" : $"Phiếu chờ ({pendingCount:N0})";
+        if (PrimaryPathBox is not null && !PrimaryPathBox.IsKeyboardFocusWithin) PrimaryPathBox.Text = State.PrimaryExcelPath;
         if (ReferencePathBox is not null && !ReferencePathBox.IsKeyboardFocusWithin) ReferencePathBox.Text = State.ReferencePath;
         SettingsSourceText.Text = $"Tệp nguồn: {State.SourceFile} · ngày cập nhật: {State.SourceLastModified}\n{State.SourceAudit.CatalogCount} mã hàng, {State.SourceAudit.TypedTransactionCount} dòng nhập/xuất có loại giao dịch. Số dư đầu kỳ nhập vào Kho tổng.";
         var mismatch = State.SourceAudit.SnapshotLedgerMismatches.FirstOrDefault();
@@ -541,6 +542,33 @@ public partial class MainWindow : Window
         await Task.CompletedTask;
     }
 
+    private async void BrowsePrimaryFile_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Title = "Chọn KHO.xlsx làm file chính", Filter = "Tệp Excel (*.xlsx)|*.xlsx" };
+        if (dialog.ShowDialog(this) != true) return;
+        PrimaryPathBox.Text = dialog.FileName;
+        State.PrimaryExcelPath = dialog.FileName;
+        await PersistAsync(false);
+        CheckPrimaryFile_Click(sender, e);
+    }
+
+    private async void CheckPrimaryFile_Click(object sender, RoutedEventArgs e)
+    {
+        var path = PrimaryPathBox.Text.Trim();
+        try
+        {
+            var stocks = PrimaryWorkbookReader.ReadStocks(path);
+            var transactions = PrimaryWorkbookReader.ReadTransactions(path);
+            State.PrimaryExcelPath = path;
+            await PersistAsync(false);
+            ShowToast($"File kho chính hợp lệ: {stocks.Count:N0} mã vật tư và {transactions.Count:N0} giao dịch. Chưa ghi thay đổi vào Excel.");
+        }
+        catch (Exception ex)
+        {
+            ShowToast("Không thể đọc file kho chính: " + ex.Message);
+        }
+    }
+
     private async void BrowseReferenceFolder_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Chọn thư mục chứa tệp Excel tham chiếu", Multiselect = false };
@@ -571,12 +599,22 @@ public partial class MainWindow : Window
             ShowToast("Chọn thư mục chứa Excel hoặc chọn trực tiếp một tệp tham chiếu .xlsx.");
             return;
         }
+        if (string.IsNullOrWhiteSpace(PrimaryPathBox.Text))
+        {
+            ShowToast("Chọn file KHO.xlsx chính trước khi đối chiếu.");
+            return;
+        }
+        State.PrimaryExcelPath = PrimaryPathBox.Text.Trim();
+        if (Path.GetFullPath(State.PrimaryExcelPath).Equals(Path.GetFullPath(State.ReferencePath), StringComparison.OrdinalIgnoreCase))
+        {
+            ShowToast("File đối chiếu phải khác file KHO.xlsx chính.");
+            return;
+        }
         await PersistAsync(false);
         try
         {
-            var page = new ReferenceInventoryWindow(State, State.ReferencePath);
-            page.ApplyChanges = ApplyReferenceChangesAsync;
-            ShowEmbeddedPage(page, "Đối chiếu nguồn tồn", "So sánh nguồn Excel với tổng tồn trên app và sửa các SKU cần thiết");
+            var page = new ReferenceInventoryWindow(State, State.ReferencePath, State.PrimaryExcelPath);
+            ShowEmbeddedPage(page, "Đối chiếu hai file Excel", "Lấy tồn từ KHO.xlsx, so mã và số lượng với file đối chiếu; không tự ghi vào file nào");
         }
         catch (Exception ex) { ShowToast("Không đối chiếu được tồn: " + ex.Message); }
     }
