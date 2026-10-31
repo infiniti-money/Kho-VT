@@ -73,8 +73,10 @@
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0" Background="#10283D">
-            <DockPanel LastChildFill="True" Margin="18,22,18,16">
-                <StackPanel DockPanel.Dock="Top">
+            <Grid Margin="18,18,18,16">
+                <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,4,5,0">
+                <StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="2,2,0,30">
                         <Border Width="40" Height="40" CornerRadius="12" Background="White" VerticalAlignment="Center" ClipToBounds="True">
                             <Image Source="Assets/hisa_logo.png" Stretch="UniformToFill" />
@@ -138,8 +140,9 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Text="ⓘ" Width="28" FontSize="15"/><TextBlock Text="Thông tin phần mềm" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                 </StackPanel>
+                </ScrollViewer>
 
-                <StackPanel DockPanel.Dock="Bottom">
+                <StackPanel Grid.Row="1">
                     <Border Background="#1C3552" CornerRadius="10" Padding="13" Margin="0,0,0,14">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
@@ -161,7 +164,7 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </DockPanel>
+            </Grid>
         </Border>
 
         <Grid Grid.Column="1">
