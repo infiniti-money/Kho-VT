@@ -51,6 +51,8 @@ public partial class ReferenceInventoryWindow : Window
         _state = state;
         _primaryPath = primaryPath;
         ResolvedPath = ResolveWorkbook(path);
+        if (Path.GetFullPath(ResolvedPath).Equals(Path.GetFullPath(_primaryPath), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Tệp đối chiếu không được trùng với KHO.xlsx chính. Hãy chọn một tệp Excel khác.");
         WarehouseBox.ItemsSource = state.Warehouses;
         WarehouseBox.SelectedItem = state.Warehouses.FirstOrDefault(warehouse => warehouse.Equals("Kho tổng", StringComparison.OrdinalIgnoreCase))
             ?? state.Warehouses.FirstOrDefault();
