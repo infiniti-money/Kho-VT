@@ -393,9 +393,36 @@ public partial class MainWindow : Window
 
     private bool CanOpenAnotherPage()
     {
-        if (WorkspaceNavigationPolicy.CanOpenRootPage(_currentEmbeddedPage is not null)) return true;
-        ShowToast($"Trang «{_currentEmbeddedPage!.Title}» vẫn đang mở. Vui lòng đóng trang này trước khi mở trang khác.");
-        return false;
+        // Background operations must not silently replace an active editor.
+        return _currentEmbeddedPage is null;
+    }
+
+    private void RequestRootNavigation(Action open)
+    {
+        if (_currentEmbeddedPage is null)
+        {
+            open();
+            return;
+        }
+
+        // Read-only pages are replaced immediately. Editors require a single
+        // confirmation so users cannot accidentally lose uncommitted input.
+        var editor = _currentEmbeddedPage.Source;
+        var mayHaveChanges = editor is MovementWindow or ItemEditorWindow
+            or MaterialRequestEditorWindow or PrintTemplateWindow or CatalogsWindow
+            or ManageUnitsWindow or ReplenishmentWindow;
+        void Switch()
+        {
+            // Unwind the explicit request-editor child as well as its parent.
+            // Completions receive false, so no unapplied edits get saved.
+            while (_currentEmbeddedPage is not null)
+                CompleteEmbeddedPage(_currentEmbeddedPage.Source, false, null);
+            open();
+        }
+        if (mayHaveChanges)
+            ConfirmInApp("Trang hiện tại có thể có dữ liệu chưa lưu. Chuyển trang và bỏ các thay đổi chưa lưu?",
+                accepted => { if (accepted) Switch(); }, "Chuyển trang", "Ở lại");
+        else Switch();
     }
 
     private void HideStandardPages()
@@ -559,17 +586,19 @@ public partial class MainWindow : Window
         }
     }
 
-    private void NavDashboard_Click(object sender, RoutedEventArgs e) => NavigateTo("dashboard");
-    private void NavInventory_Click(object sender, RoutedEventArgs e) => NavigateTo("inventory");
-    private void NavAudit_Click(object sender, RoutedEventArgs e) => NavigateTo("audit");
-    private void NavLabels_Click(object sender, RoutedEventArgs e) => NavigateTo("labels");
-    private void NavSettings_Click(object sender, RoutedEventArgs e) => NavigateTo("settings");
-    private async void NavMovement_Click(object sender, RoutedEventArgs e) => await OpenMovementAsync();
-    private async void QuickMovement_Click(object sender, RoutedEventArgs e) => await OpenMovementAsync();
-    private async void NavPending_Click(object sender, RoutedEventArgs e) => await OpenPendingMovementsAsync();
-    private async void NavRequests_Click(object sender, RoutedEventArgs e) => await OpenMaterialRequestsAsync();
-    private void NavReplenishment_Click(object sender, RoutedEventArgs e) => OpenReplenishment();
-    private void NavAi_Click(object sender, RoutedEventArgs e)
+    private void NavDashboard_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("dashboard"));
+    private void NavInventory_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("inventory"));
+    private void NavAudit_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("reports"));
+    private void NavLabels_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("labels"));
+    private void NavSettings_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("settings"));
+    private void NavMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
+    private void QuickMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
+    private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
+    private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
+    private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
+    private void NavAi_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenAiAssistant);
+
+    private void OpenAiAssistant()
     {
         if (_state is null || !CanOpenAnotherPage()) return;
         var assistant = new AiAssistantWindow(State)
@@ -579,9 +608,12 @@ public partial class MainWindow : Window
         ShowEmbeddedPage(assistant, "Trợ lý AI Gemini",
             "Trò chuyện, báo cáo tồn kho theo tuần và tháng, mic và phản hồi bằng âm thanh");
     }
-    private async void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => await OpenPrintTemplatesAsync();
+    private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 
-    private void NavQuickSearch_Click(object sender, RoutedEventArgs e)
+    private void NavQuickSearch_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(OpenQuickSearch);
+
+    private void OpenQuickSearch()
     {
         if (!CanOpenAnotherPage()) return;
         var page = new QuickSearchWindow(State);
@@ -593,7 +625,10 @@ public partial class MainWindow : Window
         });
     }
 
-    private void NavNegativeStock_Click(object sender, RoutedEventArgs e)
+    private void NavNegativeStock_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(OpenNegativeStock);
+
+    private void OpenNegativeStock()
     {
         if (!CanOpenAnotherPage()) return;
         var page = new NegativeStockWindow(State);
@@ -603,9 +638,12 @@ public partial class MainWindow : Window
         });
     }
 
-    private void NavCatalogs_Click(object sender, RoutedEventArgs e) => _ = OpenCatalogsAsync();
-    private void NavReports_Click(object sender, RoutedEventArgs e) => ShowEmbeddedPage(new DetailedReportsWindow(State), "Báo cáo chi tiết", "Tra cứu nhật ký theo ngày, loại giao dịch, kho và SKU");
-    private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) => ShowEmbeddedPage(new SoftwareInfoWindow(), "Thông tin phần mềm", "Thông tin liên hệ và tác giả");
+    private void NavCatalogs_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenCatalogsAsync());
+    private void NavReports_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => NavigateTo("reports"));
+    private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => NavigateTo("settings"));
 
     private void OpenReplenishment()
     {
