@@ -44,7 +44,15 @@ public partial class MainWindow : Window
         SystemInfoText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Windows x64 · HISA Kho-VT";
         _toastTimer.Tick += (_, _) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         EmbeddedWindowNavigation.NotificationRequested += ShowToast;
-        Closed += (_, _) => EmbeddedWindowNavigation.NotificationRequested -= ShowToast;
+        Closed += (_, _) =>
+        {
+            if (_currentEmbeddedPage?.Source is AiAssistantWindow activeAi)
+                activeAi.EndHandsFreeAndCancel();
+            foreach (var page in _embeddedPageStack)
+                if (page.Source is AiAssistantWindow nestedAi)
+                    nestedAi.EndHandsFreeAndCancel();
+            EmbeddedWindowNavigation.NotificationRequested -= ShowToast;
+        };
     }
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)

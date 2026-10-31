@@ -89,7 +89,7 @@
                             <TextBlock Text="QUYỀN RIÊNG TƯ &amp; PHÊ DUYỆT" Foreground="#28537E" FontWeight="Bold" FontSize="11"/>
                             <CheckBox x:Name="ShareDataCheck" Margin="0,11,0,10" FontSize="11.5"
                                       Foreground="#315D84" Content="Cho phép gửi số liệu thống kê kho rút gọn tới Gemini"
-                                      />
+                                      Checked="Sharing_Changed" Unchecked="Sharing_Changed" />
                             <CheckBox x:Name="SpeakAnswerCheck" FontSize="11.5" Foreground="#315D84"
                                       Content="Đọc câu trả lời bằng giọng Windows" IsChecked="False"/>
                             <TextBlock Margin="0,12,0,0" Foreground="#476D8C" FontSize="10.5" TextWrapping="Wrap"
@@ -102,17 +102,18 @@
             <Border Grid.Column="2" Background="White" BorderBrush="#DDE7F2" BorderThickness="1" CornerRadius="14" Padding="0">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
 
                     <Border BorderBrush="#E9EFF6" BorderThickness="0,0,0,1" Padding="19,15">
                         <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Trò chuyện với trợ lý HISA" FontWeight="Bold" FontSize="15" Foreground="#16314F"/>
                                 <TextBlock Text="Bạn có thể hỏi về tồn kho, nhập xuất và vật tư sắp hết"
                                            Foreground="#8293A6" FontSize="11" Margin="0,3,0,0"/>
                             </StackPanel>
-                            <Border Grid.Column="1" Background="#E7F7F1" CornerRadius="10" Padding="10,6" VerticalAlignment="Center">
+                            <Button Grid.Column="1" Content="Xóa hội thoại" Click="ClearChat_Click" Margin="0,0,10,0" Padding="10,7" VerticalAlignment="Center"/>
+                            <Border Grid.Column="2" Background="#E7F7F1" CornerRadius="10" Padding="10,6" VerticalAlignment="Center">
                                 <TextBlock Text="●  AI hỗ trợ phân tích" FontWeight="SemiBold" FontSize="10.5" Foreground="#177A63"/>
                             </Border>
                         </Grid>
@@ -161,6 +162,21 @@
                             <Button x:Name="SendButton" Grid.Column="3" Content="Gửi Gemini" Style="{StaticResource AiAction}"
                                     Click="Send_Click" Margin="7,0,0,0" VerticalAlignment="Bottom"/>
                         </Grid>
+                    </Border>
+                    <Border Grid.Row="4" BorderBrush="#DCE8F0" BorderThickness="0,1,0,0"
+                            Background="#F1F9FC" Padding="14,10">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HandsFreeButton" Content="🎙 Bật rảnh tay" Click="HandsFree_Click"
+                                        Style="{StaticResource AiAction}" Margin="0,0,9,0"/>
+                                <Button x:Name="CancelMicButton" Content="■ Hủy micro" Click="CancelMicrophone_Click"
+                                        Style="{StaticResource AiSecondary}"/>
+                                <TextBlock x:Name="HandsFreeStatus" Text="Rảnh tay đang tắt" Foreground="#365F78"
+                                           FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="Khi bật rảnh tay: tiếng nói được gửi qua Internet tới Gemini; micro dừng khi AI trả lời và loa đang đọc. Không tự bật khi mở trang."
+                                       Foreground="#53788E" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                        </StackPanel>
                     </Border>
                 </Grid>
             </Border>

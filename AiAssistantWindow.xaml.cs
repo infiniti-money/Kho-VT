@@ -51,6 +51,7 @@ public partial class AiAssistantWindow : Window
 
     private void SaveKey_Click(object sender, RoutedEventArgs e)
     {
+        EndHandsFreeAndCancel();
         try
         {
             GeminiKeyStore.Save(KeyInput.Password);
@@ -63,6 +64,7 @@ public partial class AiAssistantWindow : Window
 
     private void RemoveKey_Click(object sender, RoutedEventArgs e)
     {
+        EndHandsFreeAndCancel();
         try
         {
             GeminiKeyStore.Remove();
@@ -96,6 +98,11 @@ public partial class AiAssistantWindow : Window
 
     private async void Send_Click(object sender, RoutedEventArgs e)
     {
+        if (_handsFreeEnabled)
+        {
+            ActivityStatus.Text = "Đang bật rảnh tay. Tắt rảnh tay trước khi gửi câu hỏi thủ công.";
+            return;
+        }
         if (_busy) return;
         var question = QuestionInput.Text.Trim();
         if (string.IsNullOrWhiteSpace(question))
@@ -114,6 +121,9 @@ public partial class AiAssistantWindow : Window
             : "Người dùng chưa đồng ý gửi số liệu kho. Không có dữ liệu kho; không được suy đoán tồn.";
         var prior = _history.ToArray();
         _busy = true;
+        _manualRequestCts?.Dispose();
+        _manualRequestCts = new CancellationTokenSource();
+        var requestToken = _manualRequestCts.Token;
         SendButton.IsEnabled = false;
         QuestionInput.IsEnabled = false;
         ChatMessages.Add(new AiChatMessage(true, question));
@@ -122,7 +132,8 @@ public partial class AiAssistantWindow : Window
         ActivityStatus.Text = "Đang hỏi Gemini qua kết nối Internet…";
         try
         {
-            var answer = await GeminiAssistantClient.AskAsync(key, question, context, prior);
+            var answer = await GeminiAssistantClient.AskAsync(key, question, context, prior, requestToken);
+            if (requestToken.IsCancellationRequested || _sessionClosed) return;
             _history.Add(new AiChatTurn("user", question));
             _history.Add(new AiChatTurn("model", answer));
             ChatMessages.Add(new AiChatMessage(false, answer));
@@ -131,18 +142,26 @@ public partial class AiAssistantWindow : Window
                 : "Đã nhận trả lời; không gửi thống kê kho.";
             if (SpeakAnswerCheck.IsChecked == true) Speak(answer);
         }
+        catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+        {
+            // Cancellation requested by user or navigation; do not add a failure message.
+        }
         catch (Exception ex)
         {
+            if (_sessionClosed || requestToken.IsCancellationRequested) return;
             ChatMessages.Add(new AiChatMessage(false, "Chưa thể kết nối Gemini: " + ex.Message));
             ActivityStatus.Text = "Lần hỏi chưa thành công; bạn có thể thử lại.";
         }
         finally
         {
             _busy = false;
-            SendButton.IsEnabled = true;
-            QuestionInput.IsEnabled = true;
-            QuestionInput.Focus();
-            ScrollToBottom();
+            if (!_sessionClosed)
+            {
+                SendButton.IsEnabled = true;
+                QuestionInput.IsEnabled = true;
+                QuestionInput.Focus();
+                ScrollToBottom();
+            }
         }
     }
 
@@ -172,6 +191,11 @@ public partial class AiAssistantWindow : Window
 
     private void Microphone_Click(object sender, RoutedEventArgs e)
     {
+        if (_handsFreeEnabled)
+        {
+            ActivityStatus.Text = "Đang bật rảnh tay. Hãy tắt rảnh tay trước khi dùng micro thủ công.";
+            return;
+        }
         if (_microphone is not null)
         {
             _microphone.RecognizeAsyncCancel();
@@ -224,6 +248,7 @@ public partial class AiAssistantWindow : Window
     private void StopSpeaking_Click(object sender, RoutedEventArgs e)
     {
         _speaker?.SpeakAsyncCancelAll();
+        try { _handsFreeSpeaker?.SpeakAsyncCancelAll(); } catch { }
         ActivityStatus.Text = "Đã dừng đọc câu trả lời.";
     }
 
@@ -234,16 +259,8 @@ public partial class AiAssistantWindow : Window
 
     private bool TryCloseAssistant()
     {
-        if (_busy)
-        {
-            ActivityStatus.Text = "Đang đợi Gemini trả lời; hãy đợi trước khi đóng trang.";
-            return false;
-        }
-        try { _microphone?.RecognizeAsyncCancel(); }
-        catch { /* Already stopped. */ }
-        _microphone?.Dispose();
-        _microphone = null;
-        _speaker?.SpeakAsyncCancelAll();
+        _sessionClosed = true;
+        EndHandsFreeAndCancel();
         _speaker?.Dispose();
         _speaker = null;
         this.CompleteEmbedded(false);
