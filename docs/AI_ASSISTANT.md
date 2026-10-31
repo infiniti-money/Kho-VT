@@ -5,6 +5,7 @@
 - Giao diện mới: trang trò chuyện, ô số liệu cảnh báo, nút báo cáo, quản lý khóa Gemini, xác nhận quyền gửi thống kê, mic và phát âm phản hồi.
 - Phân tích **tại máy** (không cần AI/API): mức tồn hiện tại từ bộ nhớ HISA, cảnh báo hết/âm tồn, dưới tối thiểu, nhập/xuất 7 ngày và 30 ngày theo từng SKU và đơn vị. Các đơn vị khác nhau **không được cộng chung thành số lượng tổng**.
 - Trò chuyện Gemini sử dụng endpoint Google `v1beta/models/gemini-2.5-flash:generateContent`; giao tiếp HTTPS. Có lịch sử trò chuyện giới hạn số lượt trong phiên; lịch sử không lưu lên đĩa.
+- Nút **Xem và duyệt đề xuất nhập kho** mở biểu mẫu đề xuất có sẵn của HISA. Người dùng kiểm tra và quyết định lập phiếu; nút không trực tiếp sửa file Excel.
 - **KHÔNG tự ghi vào KHO.xlsx** hoặc tự phê duyệt phiếu. Báo cáo AI có thể đề xuất nhập, xuất, chỉnh sửa nhưng luôn cần người dùng xem/duyệt; hiện chưa có bộ thực thi chỉnh sửa Excel.
 - Chỉ gửi thống kê rút gọn của tối đa 24 SKU nổi bật cho Gemini khi người dùng **tích ô đồng ý gửi số liệu**. Câu hỏi người dùng vẫn được gửi qua Internet khi nhấn nút Gửi.
 
