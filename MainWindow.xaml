@@ -132,7 +132,7 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Text="▦" Width="28" FontSize="16"/><TextBlock Text="Tổng quan" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <TextBlock Text="NHÓM CHỨC NĂNG" Foreground="#7188A3" FontSize="10" FontWeight="Bold" Margin="8,24,0,10"/>
-                    <Expander x:Name="NavGroupStock" Style="{StaticResource NavGroupExpander}" Header="VẬT TƯ & TỒN KHO" IsExpanded="True" Expanded="NavGroup_Expanded">
+                    <Expander x:Name="NavGroupStock" Style="{StaticResource NavGroupExpander}" Header="VẬT TƯ &amp; TỒN KHO" IsExpanded="True" Expanded="NavGroup_Expanded">
                         <StackPanel>
                             <Button x:Name="NavInventory" Style="{StaticResource NavButton}" Click="NavInventory_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="▤" Width="28" FontSize="16"/><TextBlock Text="Danh sách vật tư" VerticalAlignment="Center"/></StackPanel>
@@ -151,7 +151,7 @@
                             </Button>
                         </StackPanel>
                     </Expander>
-                    <Expander x:Name="NavGroupDocuments" Style="{StaticResource NavGroupExpander}" Header="PHIẾU & NHẬP XUẤT" IsExpanded="False" Expanded="NavGroup_Expanded">
+                    <Expander x:Name="NavGroupDocuments" Style="{StaticResource NavGroupExpander}" Header="PHIẾU &amp; NHẬP XUẤT" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
                             <Button x:Name="NavMovement" Style="{StaticResource NavButton}" Click="NavMovement_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="⇄" Width="28" FontSize="18"/><TextBlock Text="Nhập &amp; Xuất kho" VerticalAlignment="Center"/></StackPanel>
@@ -170,7 +170,7 @@
                             </Button>
                         </StackPanel>
                     </Expander>
-                    <Expander x:Name="NavGroupReports" Style="{StaticResource NavGroupExpander}" Header="BÁO CÁO & TRỢ LÝ AI" IsExpanded="False" Expanded="NavGroup_Expanded">
+                    <Expander x:Name="NavGroupReports" Style="{StaticResource NavGroupExpander}" Header="BÁO CÁO &amp; TRỢ LÝ AI" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
                             <Button x:Name="NavAudit" Style="{StaticResource NavButton}" Click="NavAudit_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="28" FontSize="17"/><TextBlock Text="Nhật ký giao dịch" VerticalAlignment="Center"/></StackPanel>
@@ -184,7 +184,7 @@
                             </Button>
                         </StackPanel>
                     </Expander>
-                    <Expander x:Name="NavGroupSystem" Style="{StaticResource NavGroupExpander}" Header="HỆ THỐNG & DỮ LIỆU" IsExpanded="False" Expanded="NavGroup_Expanded">
+                    <Expander x:Name="NavGroupSystem" Style="{StaticResource NavGroupExpander}" Header="HỆ THỐNG &amp; DỮ LIỆU" IsExpanded="False" Expanded="NavGroup_Expanded">
                         <StackPanel>
                             <Button x:Name="NavSettings" Style="{StaticResource NavButton}" Click="NavSettings_Click">
                                 <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" Width="28" FontSize="15"/><TextBlock Text="Sao lưu &amp; dữ liệu" VerticalAlignment="Center"/></StackPanel>
