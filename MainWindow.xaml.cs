@@ -464,7 +464,7 @@ public partial class MainWindow : Window
 
     private void SetNavState()
     {
-        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit, NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports, NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment, NavPrintTemplates })
+        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit, NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports, NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment, NavAi, NavPrintTemplates })
         {
             var active = button.Name switch
             {
@@ -474,6 +474,7 @@ public partial class MainWindow : Window
                 "NavAudit" => _currentPage == "audit",
                 "NavLabels" => _currentPage == "labels",
                 "NavSettings" => _currentPage == "settings",
+                "NavAi" => _currentEmbeddedPage?.Source is AiAssistantWindow,
                 _ => false
             };
             button.Background = active ? new SolidColorBrush(Color.FromRgb(36, 99, 235)) : Brushes.Transparent;
@@ -491,6 +492,17 @@ public partial class MainWindow : Window
     private async void NavPending_Click(object sender, RoutedEventArgs e) => await OpenPendingMovementsAsync();
     private async void NavRequests_Click(object sender, RoutedEventArgs e) => await OpenMaterialRequestsAsync();
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) => OpenReplenishment();
+    private void NavAi_Click(object sender, RoutedEventArgs e)
+    {
+        if (_state is null) return;
+        if (_currentEmbeddedPage is not null) return;
+        var assistant = new AiAssistantWindow(State)
+        {
+            OpenReplenishment = () => OpenReplenishment()
+        };
+        ShowEmbeddedPage(assistant, "Trợ lý AI Gemini",
+            "Trò chuyện, báo cáo tồn kho theo tuần và tháng, mic và phản hồi bằng âm thanh");
+    }
     private async void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => await OpenPrintTemplatesAsync();
 
     private void NavQuickSearch_Click(object sender, RoutedEventArgs e)
