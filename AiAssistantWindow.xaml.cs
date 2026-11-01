@@ -17,6 +17,7 @@ public partial class AiAssistantWindow : Window
     private readonly InventoryState _state;
     private readonly List<AiChatTurn> _history = [];
     private SpeechSynthesizer? _speaker;
+    private CancellationTokenSource? _manualTtsCts;
     private string _lastAssistantText = "";
     private bool _busy;
 
@@ -194,7 +195,7 @@ public partial class AiAssistantWindow : Window
         }
     }
 
-    private void ReadAloud_Click(object sender, RoutedEventArgs e)
+    private async void ReadAloud_Click(object sender, RoutedEventArgs e)
     {
         var value = !string.IsNullOrWhiteSpace(_lastAssistantText) ? _lastAssistantText :
             ChatMessages.LastOrDefault(message => !message.IsUser)?.Text;
@@ -203,8 +204,53 @@ public partial class AiAssistantWindow : Window
             ActivityStatus.Text = "An chưa có nội dung để đọc.";
             return;
         }
-        Speak(value);
-        ActivityStatus.Text = "An đang đọc nội dung bằng giọng nữ tiếng Việt trên Windows.";
+        try
+        {
+            using var probe = new SpeechSynthesizer();
+            AnVoiceSelector.Configure(probe);
+            Speak(value);
+            ActivityStatus.Text = "An đang đọc bằng giọng nữ tiếng Việt cài trên Windows.";
+            return;
+        }
+        catch (InvalidOperationException) { /* No suitable local voice. */ }
+        catch (Exception ex) { ActivityStatus.Text = "Lỗi giọng đọc Windows: " + ex.Message; }
+
+        if (!GeminiKeyStore.HasKey)
+        {
+            ActivityStatus.Text = "Windows thiếu giọng nữ tiếng Việt. Hãy lưu khóa Gemini để dùng giọng An qua Internet.";
+            return;
+        }
+        if (MessageBox.Show(this,
+            "Windows chưa có giọng nữ tiếng Việt phù hợp.\n\n" +
+            "Bạn đồng ý gửi nội dung đang hiển thị tới Google Gemini để An đọc " +
+            "bằng giọng nữ nhẹ nhàng theo phong cách Hà Nội?\n\n" +
+            "Nội dung có thể chứa số liệu kho, vì vậy chỉ tiếp tục khi bạn cho phép.",
+            "Dùng giọng đọc Gemini của An", MessageBoxButton.YesNo,
+            MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+
+        _manualTtsCts?.Cancel();
+        _manualTtsCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _manualTtsCts = cts;
+        ActivityStatus.Text = "An đang tạo giọng nữ tiếng Việt bằng Gemini…";
+        try
+        {
+            await AnGeminiSpeechService.SpeakAsync(GeminiKeyStore.Load(), value, cts.Token);
+            if (!_sessionClosed && !cts.IsCancellationRequested)
+                ActivityStatus.Text = "An đã đọc xong nội dung.";
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (!_sessionClosed && !cts.IsCancellationRequested)
+                ActivityStatus.Text = "Không đọc được bằng Gemini: " + ex.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_manualTtsCts, cts)) _manualTtsCts = null;
+            cts.Dispose();
+        }
     }
 
     private void CreateReplenishment_Click(object sender, RoutedEventArgs e)
@@ -284,6 +330,7 @@ public partial class AiAssistantWindow : Window
     private void StopSpeaking_Click(object sender, RoutedEventArgs e)
     {
         _speaker?.SpeakAsyncCancelAll();
+        try { _manualTtsCts?.Cancel(); } catch { }
         try { _speechPlaybackCts?.Cancel(); } catch { }
         try { _handsFreeSpeaker?.SpeakAsyncCancelAll(); } catch { }
         ActivityStatus.Text = "Đã dừng đọc câu trả lời.";
