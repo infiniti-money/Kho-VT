@@ -69,14 +69,18 @@ public static class ExcelSlipTemplatePrinter
             dynamic book = bookObject;
             dynamic transactions = book.Worksheets["Nhập Xuất"];
             dynamic print = book.Worksheets["Phiếu in"];
-            var last = (int)transactions.UsedRange.Rows.Count;
+            var used = transactions.UsedRange;
+            var last = (int)used.Row + (int)used.Rows.Count - 1;
             string token = "[HISA:" + docNo + "]";
             string selector = "HISA-" + docNo;
             int selected = 0;
+            // One COM read instead of thousands of per-row reads for expanded
+            // workbooks. Excel's 2D Value2 array normally has 1-based indices.
+            var notes = transactions.Range["L5:L" + last].Value2 as Array;
             for (int row = 5; row <= last; row++)
             {
                 cancel.ThrowIfCancellationRequested();
-                string note = Convert.ToString(transactions.Range["L" + row].Value2) ?? "";
+                string note = Convert.ToString(notes?.GetValue(row - 4, 1)) ?? "";
                 if (!note.Contains(token, StringComparison.Ordinal)) continue;
                 transactions.Range["B" + row].Value2 = selector;
                 selected++;
