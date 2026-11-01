@@ -27,7 +27,7 @@ public static class ReplenishmentService
         // Những yêu cầu nhập tay chưa có kho được giữ nguyên và cần kiểm tra thủ công.
         var pendingBySku = state.MaterialRequests
             .Where(request => request.Type == "Yêu cầu nhập vật tư" &&
-                              request.Status == "Chờ xử lý" &&
+                              request.Status is "Chờ xử lý" or "Chờ duyệt" or "Đã duyệt" &&
                               string.Equals(request.Warehouse, warehouse, StringComparison.Ordinal))
             .SelectMany(request => request.Lines)
             .Where(line => double.IsFinite(line.Quantity) && line.Quantity > 0)
