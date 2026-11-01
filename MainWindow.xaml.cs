@@ -325,7 +325,12 @@ public partial class MainWindow : Window
         var selectedWarehouses = SelectedWarehouses;
         var rows = State.Products.Where(p => p.Active)
             .Where(_ => selectedWarehouses.Count > 0)
-            .Select(p => new InventoryRow { Item = p, Stock = p.StockAt(selectedWarehouses) })
+            .Select(p => new InventoryRow
+            {
+                Item = p,
+                Stock = p.StockAt(selectedWarehouses),
+                SelectedForLabel = _labelSelection.Contains(p.Sku)
+            })
             .Where(r => string.IsNullOrWhiteSpace(query) || r.Sku.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Item.Barcode.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Department.Contains(query, StringComparison.CurrentCultureIgnoreCase))
             .Where(r => category == "Tất cả nhóm" || r.Category == category)
             .Where(r => status == "Tất cả trạng thái" || r.Status == status)
@@ -461,9 +466,9 @@ public partial class MainWindow : Window
         if (!CanOpenAnotherPage()) return;
         _currentPage = page;
         DashboardPage.Visibility = page == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
-        InventoryWorkspaceTabs.Visibility = page is "inventory" or "labels" ? Visibility.Visible : Visibility.Collapsed;
-        if (page == "inventory") InventoryWorkspaceTabs.SelectedIndex = 0;
-        if (page == "labels") InventoryWorkspaceTabs.SelectedIndex = 1;
+        // Material lookup, stock-status filtering and label/barcode printing
+        // now share the single inventory work area.
+        InventoryWorkspaceTabs.Visibility = page == "inventory" ? Visibility.Visible : Visibility.Collapsed;
         AuditReportTabs.Visibility = page is "reports" or "audit" ? Visibility.Visible : Visibility.Collapsed;
         if (page is "reports" or "audit")
         {
@@ -476,7 +481,6 @@ public partial class MainWindow : Window
             "inventory" => ("Danh mục tồn kho", "Tìm kiếm, phân loại, cập nhật số dư và quản lý SKU"),
             "audit" => ("Nhật ký giao dịch", "Tra cứu chứng từ, luồng hàng và người thực hiện"),
             "reports" => ("Báo cáo & nhật ký", "Tra cứu lịch sử, lọc nâng cao và xuất báo cáo Excel"),
-            "labels" => ("Tem & mã vạch", "Tạo nhãn SKU và in theo lô"),
             "settings" => ("Dữ liệu Excel và sao lưu", "Thông tin nguồn và phục hồi dữ liệu ứng dụng"),
             "movement" => ("Nhập & Xuất kho", "Ghi nhận giao nhận và điều chuyển vật tư"),
             _ => ("Tổng quan kho", "Theo dõi tồn kho và luân chuyển vật tư")
@@ -568,17 +572,16 @@ public partial class MainWindow : Window
     {
         var activeName = _currentEmbeddedPage?.Source switch
         {
-            QuickSearchWindow => "NavQuickSearch",
-            NegativeStockWindow => "NavNegativeStock",
+            QuickSearchWindow or NegativeStockWindow => "NavInventory",
             MovementWindow => "NavMovement",
             PendingMovementsWindow => "NavPending",
-            MaterialRequestsWindow or MaterialRequestEditorWindow => "NavRequests",
+            MaterialRequestsWindow or MaterialRequestEditorWindow => "NavReplenishment",
             ReplenishmentWindow => "NavReplenishment",
             PrintTemplateWindow => "NavPrintTemplates",
             AiAssistantWindow => "NavAi",
             DetailedReportsWindow => "NavReports",
             CatalogsWindow or ManageUnitsWindow => "NavCatalogs",
-            SoftwareInfoWindow => "NavSoftwareInfo",
+            SoftwareInfoWindow => "NavSettings",
             ItemEditorWindow => "NavInventory",
             ReferenceInventoryWindow => "NavSettings",
             _ => _currentPage switch
@@ -587,16 +590,14 @@ public partial class MainWindow : Window
                 "inventory" => "NavInventory",
                 "audit" => "NavAudit",
                 "reports" => "NavReports",
-                "labels" => "NavLabels",
                 "settings" => "NavSettings",
                 _ => "NavDashboard"
             }
         };
 
-        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit,
-                     NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports,
-                     NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment,
-                     NavAi, NavPrintTemplates })
+        foreach (var button in new[] { NavDashboard, NavAi, NavInventory,
+                     NavMovement, NavPending, NavReplenishment, NavReports,
+                     NavAudit, NavPrintTemplates, NavCatalogs, NavSettings })
         {
             var active = button.Name == activeName;
             button.Background = active ? new SolidColorBrush(Color.FromRgb(21, 127, 134)) : Brushes.Transparent;
@@ -608,7 +609,8 @@ public partial class MainWindow : Window
     private void NavDashboard_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("dashboard"));
     private void NavInventory_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("inventory"));
     private void NavAudit_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("audit"));
-    private void NavLabels_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("labels"));
+    private void NavLabels_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => NavigateTo("inventory"));
     private void NavSettings_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("settings"));
     private void NavMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
     private void QuickMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
@@ -640,7 +642,7 @@ public partial class MainWindow : Window
     private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 
     private void NavQuickSearch_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(OpenQuickSearch);
+        RequestRootNavigation(() => NavigateTo("inventory"));
 
     private void OpenQuickSearch()
     {
@@ -655,7 +657,11 @@ public partial class MainWindow : Window
     }
 
     private void NavNegativeStock_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(OpenNegativeStock);
+        RequestRootNavigation(() =>
+        {
+            NavigateTo("inventory");
+            StatusFilter.SelectedIndex = 2; // Low-stock filter in the main inventory list.
+        });
 
     private void OpenNegativeStock()
     {
@@ -1504,8 +1510,29 @@ public partial class MainWindow : Window
         await Task.CompletedTask;
     }
 
+    private void ToggleInventoryLabels_Click(object sender, RoutedEventArgs e)
+    {
+        var opening = LabelsPage.Visibility != Visibility.Visible;
+        LabelsPage.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
+        if (opening)
+        {
+            // The selected items from the material list can be printed in the
+            // same screen; existing label preview and SKU/barcode logic is reused.
+            foreach (var row in InventoryGrid.SelectedItems.OfType<InventoryRow>())
+                _labelSelection.Add(row.Sku);
+            RefreshLabels();
+            ShowToast("Chọn một hoặc nhiều vật tư và xem trước tem ngay trong danh sách.");
+        }
+    }
+
     private void PrintSelectedLabels_Click(object sender, RoutedEventArgs e)
     {
+        if (InventoryGrid.SelectedItems.Count > 0)
+        {
+            foreach (var row in InventoryGrid.SelectedItems.OfType<InventoryRow>())
+                _labelSelection.Add(row.Sku);
+            RefreshLabels();
+        }
         UpdateLabelSelectionFromRows();
         var selected = State.Products.Where(p => _labelSelection.Contains(p.Sku)).ToList();
         if (selected.Count == 0)
