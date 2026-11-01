@@ -34,7 +34,7 @@ public static class PrimaryWorkbookInspector
 
         public string Summary =>
             $"{CatalogItems:N0} mã vật tư · {TypedTransactions:N0} dòng có loại Nhập/Xuất · " +
-            $"{FreeTransactionRows:N0} dòng còn trống (đến dòng 965). " +
+            $"{FreeTransactionRows:N0} dòng còn trống sau dòng nhập cuối (bảng tự mở rộng, duy trì ít nhất 50 dòng). " +
             $"Có {MinimumFormulaCells:N0} công thức tồn tối thiểu và " +
             $"{QuantityFormulaCells:N0} công thức số lượng trong các cột nhập tay. " +
             (IncompleteTransactions > 0 ? $"{IncompleteTransactions:N0} dòng có mã hàng nhưng thiếu loại Nhập/Xuất. " : "") +
@@ -83,7 +83,8 @@ public static class PrimaryWorkbookInspector
                 if (!HasFormula(Get(cells, column))) missing++;
         }
 
-        for (var row = 5; row <= 965; row++)
+        var lastTransactionRow = PrimaryWorkbookTableExpander.LastRow(transactions);
+        for (var row = 5; row <= lastTransactionRow; row++)
         {
             var cells = txRows.GetValueOrDefault(row);
             var sku = Text(Get(cells, "D"), strings).Trim();
