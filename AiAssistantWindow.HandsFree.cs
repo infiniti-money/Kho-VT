@@ -31,6 +31,7 @@ public partial class AiAssistantWindow
             return;
         }
 
+        if (_microphoneProbeCts is not null) StopMicrophoneProbe();
         if (_sessionClosed || _busy)
         {
             ActivityStatus.Text = "Hãy đợi kết thúc lượt Gemini hiện tại trước khi bật rảnh tay.";
@@ -307,6 +308,7 @@ public partial class AiAssistantWindow
     private void StartManualMicrophone()
     {
         if (_sessionClosed || _handsFreeEnabled || _busy || _manualMicCts is not null) return;
+        if (_microphoneProbeCts is not null) StopMicrophoneProbe();
         if (!GeminiKeyStore.HasKey)
         {
             ActivityStatus.Text = "Hãy lưu khóa API Gemini trước khi bật micro nhận dạng tiếng Việt.";
@@ -467,6 +469,7 @@ public partial class AiAssistantWindow
     {
         StopHandsFree("Rảnh tay đã dừng.");
         StopManualMicrophone();
+        StopMicrophoneProbe();
         _manualRequestCts?.Cancel();
         try { _manualTtsCts?.Cancel(); } catch { }
         try { _speaker?.SpeakAsyncCancelAll(); } catch { }
