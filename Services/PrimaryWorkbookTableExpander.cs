@@ -25,6 +25,11 @@ public static class PrimaryWorkbookTableExpander
     private static readonly Regex RangeEnd = new(
         @"(?<start>\$?[A-Z]{1,3}\$?\d+):(?<col>\$?[A-Z]{1,3}\$?)(?<last>\d+)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // A formula may contain ranges from many sheets. Expand only references
+    // explicitly qualified by the Nhập Xuất sheet, never unrelated ranges.
+    private static readonly Regex TransactionRangeEnd = new(
+        @"(?<prefix>'Nhập Xuất'!)\s*(?<start>\$?[A-Z]{1,3}\$?\d+):(?<col>\$?[A-Z]{1,3}\$?)(?<last>\d+)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     public static int LastRow(XDocument sheet)
     {
@@ -149,7 +154,7 @@ public static class PrimaryWorkbookTableExpander
             XDocument doc;
             using (var stream = originalZip.GetEntry(name)!.Open())
                 doc = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
-            if (ExtendXmlRanges(doc, oldLastRow, targetLastRow, formulasToo: true))
+            if (ExtendXmlRanges(doc, oldLastRow, targetLastRow, formulasToo: true, extendLocalRanges: false))
                 changes[name] = doc;
         }
         // The active table itself must be extended. Never extend table1's catalog
@@ -181,7 +186,8 @@ public static class PrimaryWorkbookTableExpander
         throw new InvalidDataException("Không tìm thấy bảng tbl_NhapXuat7; không thể mở rộng an toàn.");
     }
 
-    private static bool ExtendXmlRanges(XDocument doc, int oldLast, int newLast, bool formulasToo)
+    private static bool ExtendXmlRanges(XDocument doc, int oldLast, int newLast,
+        bool formulasToo, bool extendLocalRanges = true)
     {
         var changed = false;
         foreach (var element in doc.Descendants())
@@ -193,9 +199,12 @@ public static class PrimaryWorkbookTableExpander
                     continue;
                 // Do not rewrite unrelated ranges that just happen to end
                 // at the same numeric row as the transaction table.
-                var updated = ExtendRangeEnds(element.Value, oldLast, newLast);
+                var updated = ExtendTransactionRangeEnds(element.Value, oldLast, newLast);
                 if (updated != element.Value) { element.Value = updated; changed = true; }
             }
+            // Other sheets/tables own their own dimensions and validations.
+            // The active transaction table is extended explicitly below.
+            if (!extendLocalRanges) continue;
             foreach (var attribute in element.Attributes().Where(a =>
                 a.Name.LocalName is "sqref" or "ref"))
             {
@@ -217,6 +226,13 @@ public static class PrimaryWorkbookTableExpander
             ? m.Groups["start"].Value + ":" + m.Groups["col"].Value +
                 newLast.ToString(CultureInfo.InvariantCulture)
             : m.Value);
+
+    private static string ExtendTransactionRangeEnds(string formula, int oldLast, int newLast) =>
+        TransactionRangeEnd.Replace(formula, match =>
+            match.Groups["last"].Value == oldLast.ToString(CultureInfo.InvariantCulture)
+                ? match.Groups["prefix"].Value + match.Groups["start"].Value + ":" +
+                  match.Groups["col"].Value + newLast.ToString(CultureInfo.InvariantCulture)
+                : match.Value);
 
     private static string ExtendAddress(string? value, int oldLast, int newLast)
     {

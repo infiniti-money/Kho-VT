@@ -19,7 +19,7 @@ public static class PrimaryWorkbookTransactionWriter
 {
     public sealed record Input(DateOnly Date, string Type, string Sku, double Quantity,
         string GiaoNhan, string Note);
-    public sealed record Result(int FirstRow, int RowCount, string BackupPath);
+    public sealed record Result(int FirstRow, int RowCount, string BackupPath, string WorkbookHash);
 
     private static readonly XNamespace M = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -28,7 +28,8 @@ public static class PrimaryWorkbookTransactionWriter
     private static readonly string[] Calculated = ["E", "F", "H", "I", "J"];
     private const int FirstDataRow = 5;
 
-    public static Result Append(string workbookPath, string docNo, IReadOnlyList<Input> lines)
+    public static Result Append(string workbookPath, string docNo, IReadOnlyList<Input> lines,
+        string? expectedWorkbookHash = null)
     {
         if (string.IsNullOrWhiteSpace(docNo) || docNo.Length > 70 ||
             docNo.Any(ch => !char.IsLetterOrDigit(ch) && ch is not '-' and not '_'))
@@ -65,6 +66,7 @@ public static class PrimaryWorkbookTransactionWriter
             "-" + Guid.NewGuid().ToString("N")[..6] + ".bak");
         int firstRow = 0;
         byte[] originalHash;
+        string stagedHash;
         try
         {
             // Exclusive access WHILE preparing the replacement. If Excel is open,
@@ -72,6 +74,10 @@ public static class PrimaryWorkbookTransactionWriter
             using (var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
             {
                 originalHash = SHA256.HashData(source);
+                if (expectedWorkbookHash is not null &&
+                    !Convert.ToHexString(originalHash).Equals(expectedWorkbookHash, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("KHO.xlsx đã được thay đổi ngoài HISA từ lần đồng bộ/ghi gần nhất. " +
+                        "Hãy mở Excel, tính lại và lưu rồi đồng bộ từ Excel trước khi ghi phiếu mới.");
                 source.Position = 0;
                 using var originalZip = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true);
                 var sheetEntry = ResolveSheet(originalZip, "Nhập Xuất");
@@ -181,6 +187,9 @@ public static class PrimaryWorkbookTransactionWriter
                     if (!SHA256.HashData(oldStream).SequenceEqual(SHA256.HashData(newStream)))
                         throw new InvalidDataException($"Thành phần {entry.FullName} bị thay đổi. Không ghi.");
                 }
+                // The exact staged bytes become the next optimistic-concurrency
+                // fingerprint. A later manual Excel save must invalidate it.
+                stagedHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(temp)));
             }
 
             // Fail closed if Excel reopened or source changed between staging and commit.
@@ -192,7 +201,7 @@ public static class PrimaryWorkbookTransactionWriter
 
             // Atomic replacement with automatically retained original backup.
             File.Replace(temp, path, backup, ignoreMetadataErrors: false);
-            return new Result(firstRow, lines.Count, backup);
+            return new Result(firstRow, lines.Count, backup, stagedHash);
         }
         finally
         {

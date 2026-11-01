@@ -1,3 +1,4 @@
+using System.IO;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -27,7 +28,8 @@ XElement Formula(string address, int row) =>
     new(m + "c", new XAttribute("r", address), new XElement(m + "f", "1+1"),
         new XElement(m + "v", row == 4 ? "12" : "2"));
 
-void BuildWorkbook(bool missingFormula = false)
+void BuildWorkbook(bool missingFormula = false, bool overwriteFormulaWithText = false,
+    string? sharedSkuValue = null)
 {
     using var zip = ZipFile.Open(file, ZipArchiveMode.Create);
     void Add(string name, XDocument data)
@@ -47,6 +49,10 @@ void BuildWorkbook(bool missingFormula = false)
         new XElement(p + "Relationship", new XAttribute("Id", "rId2"), new XAttribute("Target", "worksheets/sheet2.xml")),
         new XElement(p + "Relationship", new XAttribute("Id", "rId3"), new XAttribute("Target", "worksheets/sheet3.xml")))));
 
+    if (sharedSkuValue is not null)
+        Add("xl/sharedStrings.xml", new XDocument(new XElement(m + "sst",
+            new XElement(m + "si", new XElement(m + "t", sharedSkuValue)))));
+
     var catHeaders = new[] { "Mã hàng", "Tên hàng", "Đơn vị", "Tồn đầu", "Tồn tối thiểu", "Tồn hiện tại" };
     var catalog = new XElement(m + "sheetData",
         new XElement(m + "row", new XAttribute("r", 3),
@@ -55,7 +61,10 @@ void BuildWorkbook(bool missingFormula = false)
     {
         var cells = new XElement(m + "row", new XAttribute("r", row));
         if (row == 4 || row == 5)
-            cells.Add(Str("A" + row, row == 4 ? "VT0001" : "VT0002"),
+            cells.Add(row == 4 && sharedSkuValue is not null
+                    ? new XElement(m + "c", new XAttribute("r", "A4"),
+                        new XAttribute("t", "s"), new XElement(m + "v", "0"))
+                    : Str("A" + row, row == 4 ? "VT0001" : "VT0002"),
                 Str("B" + row, "Vật tư thử"), Str("C" + row, "Cái"), Num("D" + row, 10),
                 Num("E" + row, 2));
         foreach (string col in new[] { "F", "G", "I", "J", "K" })
@@ -88,6 +97,8 @@ void BuildWorkbook(bool missingFormula = false)
         {
             if (missingFormula && row == 7 && col == "I")
                 cells.Add(Blank(col + row));
+            else if (overwriteFormulaWithText && row == 7 && col == "I")
+                cells.Add(Str("I7", "Dữ liệu nhập nhầm"));
             else if (col == "I")
                 cells.Add(new XElement(m + "c", new XAttribute("r", "I" + row),
                     row == 5
@@ -112,11 +123,15 @@ void BuildWorkbook(bool missingFormula = false)
     Add("xl/worksheets/sheet5.xml", new XDocument(new XElement(m + "worksheet",
         new XElement(m + "sheetData", new XElement(m + "row", new XAttribute("r", 3),
             new XElement(m + "c", new XAttribute("r", "A3"),
-                new XElement(m + "f", "SUM('Nhập Xuất'!$G$5:$G$965)"),
+                new XElement(m + "f", "SUM('Nhập Xuất'!$G$5:$G$965)+SUM($A$5:$A$965)"),
                 new XElement(m + "v", "0")))))));
     Add("xl/worksheets/sheet3.xml",
-        new XDocument(new XElement(m + "worksheet", new XElement(m + "sheetData",
-            new XElement(m + "row", new XAttribute("r", 1), Str("A1", "Báo cáo cần bảo toàn"))))));
+        new XDocument(new XElement(m + "worksheet",
+            new XElement(m + "dimension", new XAttribute("ref", "A1:Q965")),
+            new XElement(m + "sheetData",
+                new XElement(m + "row", new XAttribute("r", 1), Str("A1", "Báo cáo cần bảo toàn"))),
+            new XElement(m + "dataValidations",
+                new XElement(m + "dataValidation", new XAttribute("sqref", "C5:C965"))))));
     Add("xl/charts/chart1.xml", new XDocument(new XElement("ChartPart", "unchanged")));
     Add("xl/externalLinks/externalLink1.xml", new XDocument(new XElement("ForeignBook", "unchanged")));
 }
@@ -135,6 +150,71 @@ string Text(XElement cell) =>
 try
 {
     BuildWorkbook();
+    var verifiedBackup = Path.Combine(scratch, "KHO-verified.bak");
+    File.Copy(file, verifiedBackup);
+
+    // Two successive inbound reconciliations must not replay historical rows
+    // or add their quantity twice to the Excel-computed stock total.
+    var localState = new HisaWarehouse.InventoryState
+    {
+        Warehouses = ["Kho tổng"],
+        Products = new System.Collections.ObjectModel.ObservableCollection<HisaWarehouse.InventoryItem>
+        {
+            new() { Sku = "VT0001", Name = "Vật tư cũ", Unit = "Cái",
+                WarehouseStocks = new Dictionary<string, double> { ["Kho tổng"] = 10 } },
+            new() { Sku = "VT0002", Name = "Vật tư thử", Unit = "Cái",
+                WarehouseStocks = new Dictionary<string, double> { ["Kho tổng"] = 2 } }
+        }
+    };
+    var proposed = PrimaryWorkbookReconciler.Prepare(file, localState);
+    PrimaryWorkbookReconciler.Apply(proposed, localState);
+    Check(localState.Products.Single(i => i.Sku == "VT0001").TotalStock == 12,
+        "adopt Excel-computed stock, never replay historical transaction quantities");
+    var synced = PrimaryWorkbookReconciler.Prepare(file, localState);
+    PrimaryWorkbookReconciler.Apply(synced, localState);
+    Check(localState.Products.Single(i => i.Sku == "VT0001").TotalStock == 12 &&
+          localState.Transactions.Count(t => t.SourceRow == 5) == 1,
+        "resynchronizing the same saved Excel does not double count or duplicate history");
+
+    // Reconciliation must not silently overwrite journal edits made after preview.
+    var stalePreview = PrimaryWorkbookReconciler.Prepare(file, localState);
+    var editedHistory = localState.Transactions.Single(t => t.SourceRow == 5);
+    var previousPartner = editedHistory.Partner;
+    editedHistory.Partner = "Đã chỉnh khi đang xem trước";
+    try
+    {
+        PrimaryWorkbookReconciler.Apply(stalePreview, localState);
+        throw new Exception("Stale reconciliation preview was accepted.");
+    }
+    catch (InvalidOperationException)
+    {
+        Check(true, "reject preview after journal partner metadata changed");
+    }
+    editedHistory.Partner = previousPartner;
+
+    // Only transactions written by the newer HISA writer carry a SourceRow anchor.
+    // Old unanchored local movements remain valid during upgrade. Once anchored,
+    // a missing Excel marker is a conflict, not an external import.
+    var signedSlip = new HisaWarehouse.InventoryTransaction
+    {
+        DocNo = "PN-20261101-SIGNED", Type = "Nhập", Sku = "VT0001",
+        Quantity = 2, Legacy = false
+    };
+    localState.Transactions.Add(signedSlip);
+    PrimaryWorkbookReconciler.Prepare(file, localState);
+    Check(true, "legacy HISA local movement without anchor does not cause false conflict");
+    signedSlip.SourceRow = 5;
+    try
+    {
+        PrimaryWorkbookReconciler.Prepare(file, localState);
+        throw new Exception("Missing signed Excel document was accepted.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(true, "reject deleted or altered HISA signed document marker");
+    }
+    localState.Transactions.Remove(signedSlip);
+
     byte[] original;
     using (var z = ZipFile.OpenRead(file))
     {
@@ -145,7 +225,11 @@ try
         new PrimaryWorkbookTransactionWriter.Input(new DateOnly(2026, 11, 1), "Nhập", "VT0001", 4, "Nhân viên A", "Kiểm tra"),
         new PrimaryWorkbookTransactionWriter.Input(new DateOnly(2026, 11, 1), "Nhập", "VT0002", 2.5, "Nhân viên A", "")
     };
-    var result = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-001", moved);
+    var trustedBeforeWrite = PrimaryWorkbookReconciler.Fingerprint(file);
+    var result = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-001", moved, trustedBeforeWrite);
+    Check(result.WorkbookHash == PrimaryWorkbookReconciler.Fingerprint(file) &&
+          result.WorkbookHash != trustedBeforeWrite,
+        "return exact staged workbook fingerprint for subsequent HISA writes");
     Check(result.FirstRow == 7 && result.RowCount == 2, "append after all existing business rows incl incomplete legacy row");
     Check(File.Exists(result.BackupPath), "original is backed up before atomic replacement");
     using (var workbook = ZipFile.OpenRead(file))
@@ -173,6 +257,17 @@ try
               workbook.GetEntry("xl/externalLinks/externalLink1.xml") is not null,
               "keep chart and external workbook links");
     }
+    var changedBytes = SHA256.HashData(File.ReadAllBytes(file));
+    try
+    {
+        PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-NEW", moved, trustedBeforeWrite);
+        throw new Exception("Externally changed workbook was accepted.");
+    }
+    catch (IOException)
+    {
+        Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(changedBytes),
+            "reject stale cached fingerprint before writing even with a fresh document ID");
+    }
     try
     {
         PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-001", moved);
@@ -199,7 +294,7 @@ try
     File.Delete(lockPath);
 
     var many = Enumerable.Repeat(moved[0], 920).ToArray();
-    var expanded = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-003", many);
+    var expanded = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-003", many, result.WorkbookHash);
     Check(expanded.FirstRow == 9, "automatically append 920 lines after prior transactions");
     using (var workbook = ZipFile.OpenRead(file))
     {
@@ -222,6 +317,11 @@ try
         Check(Cell(cat, "F4").Element(m + "f")!.Value.Contains("$G$" + finalRow) &&
               Cell(printed, "A3").Element(m + "f")!.Value.Contains("$G$" + finalRow),
             "update inventory SUMIFS and original Phiếu in template formula references");
+        Check(Cell(printed, "A3").Element(m + "f")!.Value.Contains("$A$5:$A$965"),
+            "do not extend unrelated ranges within a formula referring to Nhập Xuất");
+        using (var unchanged = workbook.GetEntry("xl/worksheets/sheet3.xml")!.Open())
+            Check(SHA256.HashData(unchanged).SequenceEqual(original),
+                "do not change unrelated sheet dimensions or validation ranges on expansion");
         Check(SHA256.HashData(File.ReadAllBytes(expanded.BackupPath)).SequenceEqual(originalBytes),
             "keep exact pre-expansion workbook as backup");
         Check(Text(Cell(tx, "M7")) == "Ô trợ giúp, phải giữ",
@@ -242,6 +342,61 @@ try
     {
         Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(missingBefore),
             "missing Excel formula causes fail-closed without touching source");
+    }
+
+    // Restoration requires a verified donor, preserves every other sheet,
+    // and forces Excel recalculation without replacing the original workbook.
+    var plan = PrimaryFormulaRecovery.Inspect(file, verifiedBackup);
+    Check(plan.Missing.Count == 1 && plan.Missing[0].Sheet == "Nhập Xuất" &&
+          plan.Missing[0].Address == "I7",
+        "identify only the deleted protected formula before showing confirmation");
+    var recoveredFrom = PrimaryFormulaRecovery.Restore(plan);
+    using (var restored = ZipFile.OpenRead(file))
+    {
+        Check(Cell(Sheet(restored, "xl/worksheets/sheet2.xml"), "I7").Element(m + "f") is not null,
+            "restore only I7 formula from verified backup");
+        using var untouched = restored.GetEntry("xl/worksheets/sheet3.xml")!.Open();
+        Check(SHA256.HashData(untouched).SequenceEqual(original),
+            "unrelated worksheet is byte-exact after formula restore");
+    }
+    Check(File.Exists(recoveredFrom) &&
+          PrimaryWorkbookInspector.Inspect(file).MissingProtectedFormulas == 0,
+        "restore writes rollback backup and removes missing formula condition");
+
+    // A pasted text value can leave t="inlineStr" and <is> in the calculated
+    // cell. Restore must remove the stale type and text, not append <f> beside it.
+    File.Delete(file);
+    BuildWorkbook(overwriteFormulaWithText: true);
+    var overwritten = PrimaryFormulaRecovery.Inspect(file, verifiedBackup);
+    Check(overwritten.Missing.Count == 1 && overwritten.Missing[0].Address == "I7",
+        "detect text pasted over the protected formula I7");
+    PrimaryFormulaRecovery.Restore(overwritten);
+    using (var recoveredText = ZipFile.OpenRead(file))
+    {
+        var fixedCell = Cell(Sheet(recoveredText, "xl/worksheets/sheet2.xml"), "I7");
+        Check(fixedCell.Element(m + "f") is not null &&
+              fixedCell.Attribute("t") is null &&
+              fixedCell.Element(m + "is") is null &&
+              fixedCell.Element(m + "v") is null,
+            "formula recovery removes stale inline-string metadata and cached value");
+    }
+
+    // Each workbook owns a different shared-string table: the numeric index
+    // alone is NOT evidence that donor and live catalog SKUs match.
+    File.Delete(file);
+    BuildWorkbook(sharedSkuValue: "VT0001");
+    var donorWithSharedStrings = Path.Combine(scratch, "shared-sku-donor.bak");
+    File.Copy(file, donorWithSharedStrings);
+    File.Delete(file);
+    BuildWorkbook(missingFormula: true, sharedSkuValue: "VT9999");
+    try
+    {
+        PrimaryFormulaRecovery.Inspect(file, donorWithSharedStrings);
+        throw new Exception("Different shared-string SKU was accepted as matching.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(true, "reject backup when shared-string indexes match but decoded SKUs differ");
     }
 
     Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");

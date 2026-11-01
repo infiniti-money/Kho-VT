@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private Action<bool>? _confirmationCompletion;
     private readonly SemaphoreSlim _excelMovementWriteGate = new(1, 1);
     private int _activeExcelCommits;
+    private DateTime _lastExcelChangeNotice = DateTime.MinValue;
 
     public ObservableCollection<InventoryRow> InventoryRows { get; } = [];
     public ObservableCollection<InventoryRow> LabelRows { get; } = [];
@@ -46,6 +47,7 @@ public partial class MainWindow : Window
         SystemInfoText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Windows x64 · HISA Kho-VT";
         _toastTimer.Tick += (_, _) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         EmbeddedWindowNavigation.NotificationRequested += ShowToast;
+        Activated += (_, _) => NotifyExternallySavedExcel();
         Closing += (_, e) =>
         {
             if (Volatile.Read(ref _activeExcelCommits) == 0) return;
@@ -761,6 +763,134 @@ public partial class MainWindow : Window
         }
     }
 
+
+    // Saved Excel data is canonical. Never replay ledger rows as stock deltas.
+    private void NotifyExternallySavedExcel()
+    {
+        if (!_isReady || _state is null || _currentEmbeddedPage is not null ||
+            Volatile.Read(ref _activeExcelCommits) > 0 ||
+            string.IsNullOrWhiteSpace(State.PrimaryExcelPath) ||
+            State.PrimaryExcelSyncedWriteUtc == DateTime.MinValue) return;
+        try
+        {
+            var stamp = File.GetLastWriteTimeUtc(State.PrimaryExcelPath);
+            if (stamp != DateTime.MinValue && stamp != State.PrimaryExcelSyncedWriteUtc &&
+                stamp != _lastExcelChangeNotice)
+            {
+                _lastExcelChangeNotice = stamp;
+                ShowToast("KHO.xlsx đã được lưu thay đổi. Vào Hệ thống & dữ liệu → Đồng bộ từ Excel để xem và xác nhận.");
+            }
+        }
+        catch (IOException) { /* No prompt while Excel is saving. */ }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private void SynchronizePrimary_Click(object sender, RoutedEventArgs e)
+    {
+        if (_state is null || Volatile.Read(ref _activeExcelCommits) > 0 || _currentEmbeddedPage is not null)
+        { ShowToast("Hãy hoàn thành thao tác hiện tại trước khi đối chiếu."); return; }
+        try
+        {
+            var path = PrimaryPathBox.Text.Trim();
+            var proposal = PrimaryWorkbookReconciler.Prepare(path, State);
+            if (proposal.WorkbookHash == State.PrimarySyncFingerprint &&
+                Path.GetFullPath(path).Equals(Path.GetFullPath(State.PrimaryExcelPath), StringComparison.OrdinalIgnoreCase))
+            { ShowToast("File Excel không thay đổi kể từ lần đồng bộ trước."); return; }
+            ConfirmInApp(proposal.Summary +
+                "\n\nChỉ bấm Đồng bộ nếu Microsoft Excel đã tính lại và lưu tất cả công thức.",
+                accepted => { if (accepted) _ = ApplyExcelSyncAsync(proposal); }, "Đồng bộ", "Hủy");
+        }
+        catch (Exception ex) { ShowToast("Chưa thể đồng bộ: " + ex.Message); }
+    }
+
+    private async Task ApplyExcelSyncAsync(PrimaryWorkbookReconciler.Preview proposal)
+    {
+        Interlocked.Increment(ref _activeExcelCommits);
+        string? backup = null;
+        var persisted = false;
+        try
+        {
+            // A locally retained JSON recovery point precedes every cache reconciliation.
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HISA", "QuanLyKho", "SyncBackups");
+            Directory.CreateDirectory(folder);
+            backup = Path.Combine(folder, "BeforeExcelSync-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + ".json");
+            await File.WriteAllTextAsync(backup, InventoryStore.SerializeBackup(State));
+            PrimaryWorkbookReconciler.Apply(proposal, State);
+            if (!await PersistAsync(false))
+                throw new IOException("Không lưu được dữ liệu mới trên máy; giữ bản sao lưu tại " + backup);
+            persisted = true;
+            RenderAll();
+            ShowToast($"Đã đồng bộ {proposal.Stocks.Count:N0} mã và {proposal.Transactions.Count:N0} dòng Excel. Không cộng số tồn hai lần.");
+        }
+        catch (Exception ex)
+        {
+            // Apply mutates the in-memory model before WebView2 confirms its
+            // durable save. Roll back that model on failure, so a later save
+            // cannot silently commit a failed reconciliation.
+            string rollbackError = "";
+            if (!persisted && backup is not null && File.Exists(backup))
+            {
+                try
+                {
+                    _state = InventoryStore.ReadBackup(backup)
+                        ?? throw new InvalidDataException("Bản sao lưu trạng thái HISA không hợp lệ.");
+                    RenderAll();
+                }
+                catch (Exception restoreEx)
+                {
+                    rollbackError = "\nKhông thể phục hồi trạng thái đang mở: " + restoreEx.Message;
+                }
+            }
+            MessageBox.Show(this, "Đồng bộ chưa hoàn tất: " + ex.Message + rollbackError +
+                "\nHãy kiểm tra bản sao lưu HISA trước khi thử lại.",
+                "Đối chiếu Excel", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { Interlocked.Decrement(ref _activeExcelCommits); }
+    }
+
+    private void RestorePrimaryFormulas_Click(object sender, RoutedEventArgs e)
+    {
+        if (_state is null || Volatile.Read(ref _activeExcelCommits) > 0 || _currentEmbeddedPage is not null)
+        { ShowToast("Hãy hoàn thành thao tác hiện tại trước khi khôi phục."); return; }
+        var path = PrimaryPathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(path)) { ShowToast("Hãy chọn KHO.xlsx trước."); return; }
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Chọn bản sao lưu đã xác minh (.bak hoặc .xlsx)",
+            Filter = "Bản sao Excel (*.bak;*.xlsx)|*.bak;*.xlsx"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            var plan = PrimaryFormulaRecovery.Inspect(path, dialog.FileName);
+            if (plan.Missing.Count == 0) { ShowToast("Không phát hiện ô công thức cần khôi phục."); return; }
+            ConfirmInApp(plan.Summary + "\n\nHãy đóng Microsoft Excel trước khi bấm Khôi phục.",
+                accepted => { if (accepted) _ = ApplyFormulaRecoveryAsync(plan); }, "Khôi phục", "Hủy");
+        }
+        catch (Exception ex) { ShowToast("Bản sao lưu chưa được xác minh: " + ex.Message); }
+    }
+
+    private async Task ApplyFormulaRecoveryAsync(PrimaryFormulaRecovery.Plan plan)
+    {
+        Interlocked.Increment(ref _activeExcelCommits);
+        try
+        {
+            var backup = await Task.Run(() => PrimaryFormulaRecovery.Restore(plan));
+            ShowToast("Đã khôi phục công thức từ bản sao đã xác minh. Sao lưu trước sửa: " + backup);
+            MessageBox.Show(this,
+                $"Đã khôi phục {plan.Missing.Count} công thức. Hãy mở KHO.xlsx bằng Microsoft Excel, tính lại và lưu. " +
+                $"\nBản sao lưu ngay trước khi sửa: {backup}",
+                "Khôi phục Excel", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Đã hủy khôi phục: " + ex.Message,
+                "Bảo vệ công thức", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { Interlocked.Decrement(ref _activeExcelCommits); }
+    }
+
     private async void BrowseReferenceFolder_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Microsoft.Win32.OpenFolderDialog { Title = "Chọn thư mục chứa tệp Excel tham chiếu", Multiselect = false };
@@ -900,8 +1030,9 @@ public partial class MainWindow : Window
         Interlocked.Increment(ref _activeExcelCommits);
         try
         {
-            if (!await TryWriteMovementToExcelAsync(draft, docNo)) return;
-            ApplyMovement(draft, docNo);
+            var excelWrite = await TryWriteMovementToExcelAsync(draft, docNo);
+            if (!excelWrite.Success) return;
+            ApplyMovement(draft, docNo, excelWrite.FirstRow);
             if (!await PersistAsync(false))
             {
                 MessageBox.Show(this,
@@ -915,20 +1046,20 @@ public partial class MainWindow : Window
         finally { Interlocked.Decrement(ref _activeExcelCommits); }
     }
 
-    private async Task<bool> TryWriteMovementToExcelAsync(MovementDraft draft, string docNo)
+    private async Task<(bool Success, int? FirstRow)> TryWriteMovementToExcelAsync(MovementDraft draft, string docNo)
     {
         // The source workbook is a single logical stock ledger. A transfer between
         // internal HISA warehouses has no Nhập/Xuất equivalent and no net change.
         if (draft.Type == "Điều chuyển")
         {
             ShowToast("Phiếu điều chuyển nội bộ không ghi vào bảng Nhập Xuất của KHO.xlsx.");
-            return true;
+            return (true, null);
         }
         if (draft.Type is not ("Nhập" or "Xuất"))
         {
             MessageBox.Show(this, "Loại phiếu không hợp lệ. Không ghi Excel.",
                 "Nhập/Xuất kho", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            return (false, null);
         }
 
         var path = State.PrimaryExcelPath?.Trim();
@@ -938,9 +1069,20 @@ public partial class MainWindow : Window
                 "Chưa chọn file KHO.xlsx chính. Vào Dữ liệu & phần mềm, chọn file chính trước khi lập phiếu. " +
                 "Phiếu và tồn kho chưa được ghi để tránh chênh lệch với Excel.",
                 "Chưa chọn file kho chính", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            return (false, null);
         }
 
+        // Before the first write after upgrading, explicitly adopt Excel's
+        // calculated stock. Otherwise cached HISA values may be out of date.
+        var expectedExcelHash = State.PrimarySyncFingerprint;
+        if (string.IsNullOrWhiteSpace(expectedExcelHash))
+        {
+            MessageBox.Show(this,
+                "Chưa đồng bộ tồn kho ban đầu với KHO.xlsx. Hãy mở Excel, tính lại, lưu " +
+                "và vào Hệ thống & dữ liệu → Đồng bộ từ Excel trước khi ghi phiếu.",
+                "Cần đồng bộ Excel lần đầu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return (false, null);
+        }
         var rows = draft.Lines.Select(line => new PrimaryWorkbookTransactionWriter.Input(
             draft.Date, draft.Type, line.Sku, line.Quantity,
             string.IsNullOrWhiteSpace(draft.Partner) ? draft.Operator : draft.Partner,
@@ -949,10 +1091,14 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() =>
-                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows));
+                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows, expectedExcelHash));
+            // Store the hash of the actual staged workbook, not the previous
+            // Excel snapshot. The next write will detect any external save.
+            State.PrimarySyncFingerprint = result.WorkbookHash;
+            State.PrimaryExcelSyncedWriteUtc = File.GetLastWriteTimeUtc(path);
             ShowToast($"Đã ghi {result.RowCount} dòng Nhập/Xuất bắt đầu tại dòng {result.FirstRow}. " +
                 "File Excel gốc có bản sao lưu trước khi ghi.");
-            return true;
+            return (true, result.FirstRow);
         }
         catch (Exception ex)
         {
@@ -961,7 +1107,7 @@ public partial class MainWindow : Window
                 "\n\nHISA KHÔNG cập nhật số dư hoặc nhật ký giao dịch cho phiếu này. " +
                 "Hãy lưu và đóng Excel, kiểm tra công thức và vị trí trống, rồi thử lại.",
                 "Bảo vệ KHO.xlsx", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            return (false, null);
         }
         finally
         {
@@ -995,7 +1141,7 @@ public partial class MainWindow : Window
         Lines = draft.Lines.Select(line => new MovementLine { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList()
     };
 
-    private List<InventoryTransaction> ApplyMovement(MovementDraft draft, string docNo)
+    private List<InventoryTransaction> ApplyMovement(MovementDraft draft, string docNo, int? excelFirstRow = null)
     {
         var records = new List<InventoryTransaction>();
         foreach (var line in draft.Lines)
@@ -1027,6 +1173,9 @@ public partial class MainWindow : Window
                 Partner = draft.Partner,
                 Operator = draft.Operator,
                 Note = draft.Note,
+                // Anchor each HISA-written line so later reconciliation detects
+                // deletion of the document marker instead of silently importing it.
+                SourceRow = excelFirstRow is int first ? first + records.Count : null,
                 Legacy = false,
                 AffectsStock = true
             });
@@ -1082,8 +1231,9 @@ public partial class MainWindow : Window
         Interlocked.Increment(ref _activeExcelCommits);
         try
         {
-            if (!await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo)) return;
-            ApplyMovement(movementDraft, pending.DocNo);
+            var excelWrite = await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo);
+            if (!excelWrite.Success) return;
+            ApplyMovement(movementDraft, pending.DocNo, excelWrite.FirstRow);
             pending.Status = "Đã xác nhận";
             if (!await PersistAsync(false))
             {

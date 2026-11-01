@@ -16,7 +16,8 @@ public static class PrimaryWorkbookReader
     private static readonly XNamespace PkgRelNs = "http://schemas.openxmlformats.org/package/2006/relationships";
 
     public sealed record Stock(string Sku, string Name, string Unit, double Current, double Minimum, int Row);
-    public sealed record Transaction(DateTime? Date, string Type, string Sku, double Quantity);
+    public sealed record Transaction(DateTime? Date, string Type, string Sku, double Quantity,
+        int Row = 0, string Partner = "", string Note = "");
 
     public static IReadOnlyDictionary<string, Stock> ReadStocks(string path)
     {
@@ -57,7 +58,7 @@ public static class PrimaryWorkbookReader
             var sku = Text(Cell(row, "D" + index), strings).Trim();
             var type = Text(Cell(row, "C" + index), strings).Trim();
             if (string.IsNullOrEmpty(sku) || (type != "Nhập" && type != "Xuất")) continue;
-            if (!TryNumber(Cell(row, "G" + index), strings, out var quantity) || quantity < 0)
+            if (!TryNumber(Cell(row, "G" + index), strings, out var quantity) || quantity <= 0)
                 throw new InvalidDataException($"Số lượng không hợp lệ ở Nhập Xuất!G{index}.");
             DateTime? date = null;
             if (TryNumber(Cell(row, "A" + index), strings, out var oa) && oa > 0)
@@ -65,7 +66,8 @@ public static class PrimaryWorkbookReader
                 try { date = DateTime.FromOADate(oa); }
                 catch (ArgumentException) { /* Preserve undated history without inventing a date. */ }
             }
-            records.Add(new Transaction(date, type, sku, quantity));
+            records.Add(new Transaction(date, type, sku, quantity, index,
+                Text(Cell(row, "K" + index), strings), Text(Cell(row, "L" + index), strings)));
         }
         return records;
     }

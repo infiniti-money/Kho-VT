@@ -23,6 +23,8 @@ public sealed class InventoryState
     public List<PrintTemplate> PrintTemplates { get; set; } = [];
     public bool PrintTemplatesConfigured { get; set; }
     public string PrimaryExcelPath { get; set; } = "";
+    public string PrimarySyncFingerprint { get; set; } = "";
+    public DateTime PrimaryExcelSyncedWriteUtc { get; set; } = DateTime.MinValue;
     public string ReferencePath { get; set; } = "";
     public SourceAudit SourceAudit { get; set; } = new();
 }
