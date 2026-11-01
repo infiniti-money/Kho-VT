@@ -103,8 +103,8 @@
                     <Button x:Name="NavPending" Style="{StaticResource NavButton}" Click="NavPending_Click" ToolTip="Phiếu chờ xác nhận">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="29" FontSize="17"/><TextBlock x:Name="NavPendingText" Text="Phiếu chờ xác nhận" VerticalAlignment="Center"/></StackPanel>
                     </Button>
-                    <Button x:Name="NavReplenishment" Style="{StaticResource NavButton}" Click="NavReplenishment_Click" ToolTip="Đề xuất nhập vật tư">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="↥" Width="29" FontSize="17"/><TextBlock Text="Đề xuất nhập vật tư" VerticalAlignment="Center"/></StackPanel>
+                    <Button x:Name="NavReplenishment" Style="{StaticResource NavButton}" Click="NavReplenishment_Click" ToolTip="Phiếu yêu cầu cấp vật tư dự phòng">
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="↥" Width="29" FontSize="17"/><TextBlock Text="Yêu cầu vật tư dự phòng" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="NavReports" Style="{StaticResource NavButton}" Click="NavReports_Click" ToolTip="Báo cáo chi tiết">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="▥" Width="29" FontSize="17"/><TextBlock Text="Báo cáo chi tiết" VerticalAlignment="Center"/></StackPanel>
