@@ -188,7 +188,11 @@ public static class PrimaryWorkbookTableExpander
         {
             if (formulasToo && element.Name.LocalName is "f" or "calculatedColumnFormula" or "definedName" or "formula1" or "formula2")
             {
-                if (string.IsNullOrEmpty(element.Value)) continue;
+                if (string.IsNullOrEmpty(element.Value) ||
+                    !element.Value.Contains("'Nhập Xuất'!", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                // Do not rewrite unrelated ranges that just happen to end
+                // at the same numeric row as the transaction table.
                 var updated = ExtendRangeEnds(element.Value, oldLast, newLast);
                 if (updated != element.Value) { element.Value = updated; changed = true; }
             }
