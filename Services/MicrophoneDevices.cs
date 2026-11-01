@@ -17,11 +17,11 @@ public static class MicrophoneDevices
     public static List<MicrophoneDeviceOption> List()
     {
         var result = new List<MicrophoneDeviceOption> { new(-1, "Mặc định của Windows") };
-        for (var device = 0; device < WaveIn.DeviceCount; device++)
+        for (var device = 0; device < WaveInEvent.DeviceCount; device++)
         {
             try
             {
-                var capabilities = WaveIn.GetCapabilities(device);
+                var capabilities = WaveInEvent.GetCapabilities(device);
                 result.Add(new MicrophoneDeviceOption(device, capabilities.ProductName));
             }
             catch { /* Device may have been unplugged during enumeration. */ }
@@ -66,11 +66,11 @@ public static class MicrophoneDevices
     {
         if (deviceNumber == -1)
         {
-            if (WaveIn.DeviceCount == 0)
+            if (WaveInEvent.DeviceCount == 0)
                 throw new InvalidOperationException("Windows chưa phát hiện thiết bị micro. Hãy kết nối micro trước.");
             return;
         }
-        if (deviceNumber < 0 || deviceNumber >= WaveIn.DeviceCount)
+        if (deviceNumber < 0 || deviceNumber >= WaveInEvent.DeviceCount)
             throw new InvalidOperationException("Micro đã chọn không còn được kết nối. Bấm Làm mới micro và chọn lại.");
     }
 }
