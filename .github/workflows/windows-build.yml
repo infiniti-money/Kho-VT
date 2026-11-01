@@ -34,6 +34,9 @@ jobs:
       - name: Test original KHO.xlsx sheet and formula validation
         run: dotnet run --project tests/KhoWorkbookStructure.SmokeTests/KhoWorkbookStructure.SmokeTests.csproj --configuration Release --nologo
 
+      - name: Test safe Excel append (input cells only)
+        run: dotnet run --project tests/ExcelAppend.SmokeTests/ExcelAppend.SmokeTests.csproj --configuration Release --nologo
+
       - name: Smoke test offline updater and safe file replacement
         run: dotnet run --project Updater/HisaUpdater.csproj --configuration Release -- --self-test
 
