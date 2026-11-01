@@ -1,3 +1,4 @@
+using HisaWarehouse.Services;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
@@ -5,11 +6,27 @@ using System.Windows.Controls;
 
 namespace HisaWarehouse;
 
-public partial class MaterialRequestEditorWindow : Window
+public partial class MaterialRequestEditorWindow : Window, IWorkspaceDirtyPage
 {
     private readonly InventoryState _state;
     private readonly string _type;
     private readonly ObservableCollection<MovementLine> _lines = [];
+    private readonly WorkspaceFormSnapshot _navigationSnapshot;
+
+    public bool HasUnsavedChanges
+    {
+        get
+        {
+            if (!LinesGrid.CommitEdit(DataGridEditingUnit.Cell, true) ||
+                !LinesGrid.CommitEdit(DataGridEditingUnit.Row, true)) return true;
+            return _navigationSnapshot.HasChanges;
+        }
+    }
+
+    private string CaptureForm() => WorkspaceFormSnapshot.Serialize(
+        DateBox.SelectedDate, NeededByBox.SelectedDate, DepartmentBox.Text,
+        RequesterBox.Text, RecipientBox.Text, NoteBox.Text, ProductBox.Text, QuantityBox.Text,
+        _lines.Select(line => new { line.Sku, line.Quantity }).ToArray());
     public MaterialRequest? ResultRequest { get; private set; }
 
     public MaterialRequestEditorWindow(InventoryState state, string type)
@@ -26,6 +43,7 @@ public partial class MaterialRequestEditorWindow : Window
         RequesterBox.Text = Environment.UserName;
         LinesGrid.ItemsSource = _lines;
         UpdateLineCount();
+        _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
     }
 
     private void AddLine_Click(object sender, RoutedEventArgs e)
