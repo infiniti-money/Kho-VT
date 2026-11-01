@@ -166,6 +166,45 @@ try
           localState.Transactions.Count(t => t.SourceRow == 5) == 1,
         "resynchronizing the same saved Excel does not double count or duplicate history");
 
+    // Reconciliation must not silently overwrite journal edits made after preview.
+    var stalePreview = PrimaryWorkbookReconciler.Prepare(file, localState);
+    var editedHistory = localState.Transactions.Single(t => t.SourceRow == 5);
+    var previousPartner = editedHistory.Partner;
+    editedHistory.Partner = "Đã chỉnh khi đang xem trước";
+    try
+    {
+        PrimaryWorkbookReconciler.Apply(stalePreview, localState);
+        throw new Exception("Stale reconciliation preview was accepted.");
+    }
+    catch (InvalidOperationException)
+    {
+        Check(true, "reject preview after journal partner metadata changed");
+    }
+    editedHistory.Partner = previousPartner;
+
+    // Only transactions written by the newer HISA writer carry a SourceRow anchor.
+    // Old unanchored local movements remain valid during upgrade. Once anchored,
+    // a missing Excel marker is a conflict, not an external import.
+    var signedSlip = new HisaWarehouse.InventoryTransaction
+    {
+        DocNo = "PN-20261101-SIGNED", Type = "Nhập", Sku = "VT0001",
+        Quantity = 2, Legacy = false
+    };
+    localState.Transactions.Add(signedSlip);
+    PrimaryWorkbookReconciler.Prepare(file, localState);
+    Check(true, "legacy HISA local movement without anchor does not cause false conflict");
+    signedSlip.SourceRow = 5;
+    try
+    {
+        PrimaryWorkbookReconciler.Prepare(file, localState);
+        throw new Exception("Missing signed Excel document was accepted.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(true, "reject deleted or altered HISA signed document marker");
+    }
+    localState.Transactions.Remove(signedSlip);
+
     byte[] original;
     using (var z = ZipFile.OpenRead(file))
     {
