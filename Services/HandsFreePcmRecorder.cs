@@ -23,7 +23,9 @@ public sealed class HandsFreePcmRecorder : IDisposable
         _aborted = false;
         _source = new WaveInEvent
         {
-            DeviceNumber = 0,
+            // -1 is WinMM WAVE_MAPPER: follow the Windows default input device.
+            // Device 0 may be an inactive webcam or a disconnected headset.
+            DeviceNumber = -1,
             WaveFormat = new WaveFormat(PcmVoiceActivityDetector.SampleRate, 16, 1),
             BufferMilliseconds = PcmVoiceActivityDetector.FrameMilliseconds,
             NumberOfBuffers = 4
