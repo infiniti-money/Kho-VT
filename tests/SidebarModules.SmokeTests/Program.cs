@@ -7,16 +7,15 @@ var chat = XDocument.Load(chatFile);
 XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
 string? Name(XElement e) => (string?)e.Attribute(x + "Name");
 var required = new[] {
-    "NavDashboard", "NavInventory", "NavQuickSearch", "NavMovement",
-    "NavPending", "NavRequests", "NavReplenishment", "NavNegativeStock",
-    "NavReports", "NavAudit", "NavLabels", "NavPrintTemplates",
-    "NavCatalogs", "NavSettings", "NavSoftwareInfo", "NavAi"
+    "NavDashboard", "NavAi", "NavInventory", "NavMovement",
+    "NavPending", "NavReplenishment", "NavReports", "NavAudit",
+    "NavPrintTemplates", "NavCatalogs", "NavSettings"
 };
 var sidebar = main.Descendants().Where(el => el.Name.LocalName == "Button")
     .Where(el => Name(el)?.StartsWith("Nav", StringComparison.Ordinal) == true).ToList();
 if (sidebar.Count != required.Length ||
     !sidebar.Select(Name).ToHashSet().SetEquals(required))
-    throw new InvalidOperationException("Flat sidebar must show all 16 top-level functions exactly once.");
+    throw new InvalidOperationException("Flat sidebar must show 11 core functions exactly once.");
 
 foreach (var button in sidebar)
 {
@@ -35,10 +34,9 @@ if (dashboard.Name.LocalName != "ScrollViewer")
     throw new InvalidOperationException("Dashboard should be scrollable on compact screens.");
 var dashboardButtons = dashboard.Descendants().Where(el => el.Name.LocalName == "Button").ToList();
 var mainActions = new HashSet<string> {
-    "NavInventory_Click", "NavMovement_Click", "NavQuickSearch_Click",
-    "NavPending_Click", "NavRequests_Click", "NavReplenishment_Click",
-    "NavNegativeStock_Click", "NavReports_Click", "NavAudit_Click",
-    "NavLabels_Click", "NavPrintTemplates_Click", "NavSettings_Click"
+    "NavInventory_Click", "NavMovement_Click", "NavPending_Click",
+    "NavReplenishment_Click", "NavReports_Click", "NavAudit_Click",
+    "NavPrintTemplates_Click", "NavSettings_Click"
 };
 foreach (var action in mainActions)
     if (!dashboardButtons.Any(el => (string?)el.Attribute("Click") == action))
@@ -81,4 +79,36 @@ if (cs.Contains("NavGroup_Expanded", StringComparison.Ordinal) ||
     cs.Contains("SidebarModuleGroups.ModuleFor", StringComparison.Ordinal))
     throw new InvalidOperationException("Obsolete accordion menu behavior remains.");
 
-Console.WriteLine("PASS: 16 flat navigations, 12 homepage actions, secure updater, consented An hands-free and all KPI bindings.");
+var navOrder = sidebar.Select(Name).ToArray();
+if (navOrder[0] != "NavDashboard" || navOrder[1] != "NavAi")
+    throw new InvalidOperationException("An must be the second page after the homepage.");
+foreach (var retired in new[] { "NavQuickSearch", "NavNegativeStock",
+    "NavRequests", "NavLabels", "NavSoftwareInfo" })
+    if (main.Descendants().Any(el => Name(el) == retired))
+        throw new InvalidOperationException("Retired standalone navigation still exists: " + retired);
+
+var inventory = main.Descendants().Single(el => Name(el) == "InventoryPage");
+var inlineLabels = inventory.Descendants().Single(el => Name(el) == "LabelsPage");
+if ((string?)inlineLabels.Attribute("Visibility") != "Collapsed" ||
+    main.Descendants().Count(el => Name(el) == "LabelsPage") != 1)
+    throw new InvalidOperationException("Label print/preview must be embedded in the inventory.");
+if (!inventory.Descendants().Any(el => (string?)el.Attribute("Click") == "ToggleInventoryLabels_Click"))
+    throw new InvalidOperationException("Inventory cannot reveal barcode print/preview.");
+var inventoryTabs = main.Descendants().Single(el => Name(el) == "InventoryWorkspaceTabs");
+if (inventoryTabs.Elements().Count(el => el.Name.LocalName == "TabItem") != 1)
+    throw new InvalidOperationException("Separate barcode page still exists.");
+
+var reports = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "DetailedReportsWindow.xaml"));
+if (reports.Descendants().Count(el => Name(el) == "SkuFilterBox") != 1)
+    throw new InvalidOperationException("Detailed reports have no multi-SKU input.");
+
+var codes = HisaWarehouse.Services.MaterialCodeFilter.Parse(" vt001,VT002 VT003,,  vt001\\tVT004\\nVT005 ");
+if (codes.Count != 5 || !codes.Contains("VT001") || !codes.Contains("vt005") ||
+    !HisaWarehouse.Services.MaterialCodeFilter.Matches(codes, "vt002") ||
+    HisaWarehouse.Services.MaterialCodeFilter.Matches(codes, "vt0021"))
+    throw new InvalidOperationException("Multi-SKU exact matching, mixed case and delimiters failed.");
+if (!HisaWarehouse.Services.MaterialCodeFilter.Matches(
+    HisaWarehouse.Services.MaterialCodeFilter.Parse(""), "VT001"))
+    throw new InvalidOperationException("Empty multi-SKU filter should show all products.");
+
+Console.WriteLine("PASS: core sidebar, An second, unchanged dashboard shell, 8 shortcuts, inline labels and exact multi-SKU filters.");
