@@ -13,6 +13,9 @@ public partial class AiAssistantWindow
     private CancellationTokenSource? _handsFreeCts;
     private CancellationTokenSource? _manualRequestCts;
     private HandsFreePcmRecorder? _pcmRecorder;
+    private HandsFreePcmRecorder? _manualRecorder;
+    private CancellationTokenSource? _manualMicCts;
+    private int _manualMicGeneration;
     private SpeechSynthesizer? _handsFreeSpeaker;
 
     private bool IsLive(int generation, CancellationToken token) =>
@@ -220,12 +223,122 @@ public partial class AiAssistantWindow
         recorder?.Dispose();
     }
 
+    /// <summary>
+    /// One-shot manual mic uses the same in-memory PCM and Gemini recognition as
+    /// hands-free. Windows 11 does not need an installed vi-VN SAPI recognizer.
+    /// This mode only fills the text box and NEVER submits the answer by itself.
+    /// </summary>
+    private void StartManualMicrophone()
+    {
+        if (_sessionClosed || _handsFreeEnabled || _busy || _manualMicCts is not null) return;
+        if (!GeminiKeyStore.HasKey)
+        {
+            ActivityStatus.Text = "Hãy lưu khóa API Gemini trước khi bật micro nhận dạng tiếng Việt.";
+            return;
+        }
+
+        var answer = MessageBox.Show(this,
+            "Cho phép HISA dùng micro cho một lượt nói?\n\n" +
+            "Khi bạn nói xong và ngừng khoảng 1,2 giây, âm thanh WAV (tối đa 25 giây) " +
+            "sẽ được gửi tới Google Gemini qua Internet để nhận dạng tiếng Việt. " +
+            "HISA không lưu tệp âm thanh trên ổ đĩa.\n\n" +
+            "Văn bản nhận dạng chỉ được đưa vào ô câu hỏi; bạn tự kiểm tra và nhấn Gửi. " +
+            "Bấm lại Mic hoặc Hủy micro để dừng.",
+            "Cho phép gửi giọng nói đến Gemini",
+            MessageBoxButton.YesNo, MessageBoxImage.Information, MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes) return;
+
+        var cts = new CancellationTokenSource();
+        _manualMicCts = cts;
+        var generation = ++_manualMicGeneration;
+        var recorder = new HandsFreePcmRecorder();
+        _manualRecorder = recorder;
+        recorder.UtteranceReady += pcm =>
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ManualMicLive(generation, cts.Token))
+                    _ = ProcessManualMicrophoneAsync(pcm, generation, cts.Token);
+            }), DispatcherPriority.Normal);
+        recorder.CaptureStopped += error =>
+        {
+            if (error is null) return;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!ManualMicLive(generation, cts.Token)) return;
+                StopManualMicrophone();
+                ActivityStatus.Text = "Micro Windows bị ngắt: " + error.Message +
+                    ". Hãy kiểm tra quyền micro và thiết bị thu mặc định.";
+            }));
+        };
+        try
+        {
+            recorder.Start();
+            MicButton.Content = "■ Hủy mic";
+            ActivityStatus.Text = "Đang nghe tiếng Việt qua micro mặc định Windows 11. " +
+                "Nói rõ, tạm ngừng 1,2 giây để gửi tới Gemini.";
+        }
+        catch (Exception ex)
+        {
+            StopManualMicrophone();
+            ActivityStatus.Text = "Không mở được micro: " + ex.Message +
+                ". Kiểm tra Settings → Privacy & security → Microphone và micro mặc định.";
+        }
+    }
+
+    private bool ManualMicLive(int generation, CancellationToken token) =>
+        !_sessionClosed && !_handsFreeEnabled && generation == _manualMicGeneration &&
+        _manualMicCts is not null && !token.IsCancellationRequested;
+
+    private async Task ProcessManualMicrophoneAsync(byte[] pcm, int generation, CancellationToken token)
+    {
+        if (!ManualMicLive(generation, token)) return;
+
+        // Stop listening before the network request, but keep the cancellation
+        // token alive so the user can still cancel an in-flight transcription.
+        var recorder = _manualRecorder;
+        _manualRecorder = null;
+        recorder?.Dispose();
+        MicButton.Content = "■ Hủy nhận dạng";
+        ActivityStatus.Text = "Đang nhận dạng tiếng Việt bằng Gemini…";
+        try
+        {
+            var key = GeminiKeyStore.Load();
+            var transcript = await GeminiAssistantClient.TranscribeVietnameseAsync(
+                key, PcmWav.MakeWav(pcm), token);
+            if (!ManualMicLive(generation, token)) return;
+            if (string.IsNullOrWhiteSpace(transcript))
+            {
+                ActivityStatus.Text = "Không nghe rõ lời nói trong đoạn thu. Kiểm tra micro và thử lại.";
+                return;
+            }
+            QuestionInput.Text = transcript;
+            QuestionInput.CaretIndex = transcript.Length;
+            QuestionInput.Focus();
+            ActivityStatus.Text = "Gemini đã nhận dạng tiếng Việt. Kiểm tra nội dung rồi nhấn Gửi Gemini.";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (ManualMicLive(generation, token))
+                ActivityStatus.Text = "Nhận dạng chưa thành công: " + ex.Message;
+        }
+        finally
+        {
+            if (ManualMicLive(generation, token))
+                StopManualMicrophone();
+        }
+    }
+
     private void StopManualMicrophone()
     {
-        var mic = _microphone;
-        _microphone = null;
-        try { mic?.RecognizeAsyncCancel(); } catch { }
-        try { mic?.Dispose(); } catch { }
+        ++_manualMicGeneration;
+        var cts = _manualMicCts;
+        _manualMicCts = null;
+        cts?.Cancel();
+        var recorder = _manualRecorder;
+        _manualRecorder = null;
+        recorder?.Dispose();
+        cts?.Dispose();
         MicButton.Content = "🎙 Mic";
     }
 
