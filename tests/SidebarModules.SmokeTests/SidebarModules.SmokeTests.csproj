@@ -5,7 +5,4 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="../../Services/SidebarModuleGroups.cs" Link="SidebarModuleGroups.cs" />
-  </ItemGroup>
 </Project>

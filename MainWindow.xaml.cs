@@ -468,7 +468,7 @@ public partial class MainWindow : Window
         if (page is "reports" or "audit")
         {
             EnsureDetailedReportTab();
-            if (page == "audit") AuditReportTabs.SelectedIndex = 0;
+            AuditReportTabs.SelectedIndex = page == "audit" ? 0 : 1;
         }
         SettingsPage.Visibility = page == "settings" ? Visibility.Visible : Visibility.Collapsed;
         var pageDetails = page switch
@@ -477,7 +477,7 @@ public partial class MainWindow : Window
             "audit" => ("Nhật ký giao dịch", "Tra cứu chứng từ, luồng hàng và người thực hiện"),
             "reports" => ("Báo cáo & nhật ký", "Tra cứu lịch sử, lọc nâng cao và xuất báo cáo Excel"),
             "labels" => ("Tem & mã vạch", "Tạo nhãn SKU và in theo lô"),
-            "settings" => ("Sao lưu & dữ liệu", "Thông tin nguồn và phục hồi dữ liệu ứng dụng"),
+            "settings" => ("Dữ liệu Excel và sao lưu", "Thông tin nguồn và phục hồi dữ liệu ứng dụng"),
             "movement" => ("Nhập & Xuất kho", "Ghi nhận giao nhận và điều chuyển vật tư"),
             _ => ("Tổng quan kho", "Theo dõi tồn kho và luân chuyển vật tư")
         };
@@ -564,15 +564,6 @@ public partial class MainWindow : Window
         SetNavState();
     }
 
-    private void NavGroup_Expanded(object sender, RoutedEventArgs e)
-    {
-        // Behave like an accordion. Expanding a different group only changes
-        // the menu, not the active work page or any unsaved form.
-        if (!IsLoaded || sender is not Expander opened) return;
-        foreach (var group in new[] { NavGroupStock, NavGroupDocuments, NavGroupProposals, NavGroupReports, NavGroupSystem })
-            if (!ReferenceEquals(group, opened)) group.IsExpanded = false;
-    }
-
     private void SetNavState()
     {
         var activeName = _currentEmbeddedPage?.Source switch
@@ -594,8 +585,9 @@ public partial class MainWindow : Window
             {
                 "dashboard" => "NavDashboard",
                 "inventory" => "NavInventory",
-                "audit" or "reports" => "NavReports",
-                "labels" => "NavInventory",
+                "audit" => "NavAudit",
+                "reports" => "NavReports",
+                "labels" => "NavLabels",
                 "settings" => "NavSettings",
                 _ => "NavDashboard"
             }
@@ -611,26 +603,11 @@ public partial class MainWindow : Window
             button.Foreground = active ? Brushes.White : new SolidColorBrush(Color.FromRgb(193, 204, 218));
         }
 
-        // Keep the active feature discoverable inside its module.
-        var targetGroup = SidebarModuleGroups.ModuleFor(activeName);
-        if (targetGroup is not null)
-        {
-            var section = targetGroup switch
-            {
-                SidebarModuleGroups.Stock => NavGroupStock,
-                SidebarModuleGroups.Documents => NavGroupDocuments,
-                SidebarModuleGroups.Proposals => NavGroupProposals,
-                SidebarModuleGroups.Reports => NavGroupReports,
-                SidebarModuleGroups.System => NavGroupSystem,
-                _ => null
-            };
-            if (section is not null && !section.IsExpanded) section.IsExpanded = true;
-        }
     }
 
     private void NavDashboard_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("dashboard"));
     private void NavInventory_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("inventory"));
-    private void NavAudit_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("reports"));
+    private void NavAudit_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("audit"));
     private void NavLabels_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("labels"));
     private void NavSettings_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("settings"));
     private void NavMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
@@ -638,9 +615,13 @@ public partial class MainWindow : Window
     private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
     private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
-    private void NavAi_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenAiAssistant);
+    private void NavAi_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => OpenAiAssistant());
 
-    private void OpenAiAssistant()
+    private void HomeHandsFree_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => OpenAiAssistant(startHandsFree: true));
+
+    private void OpenAiAssistant(bool startHandsFree = false)
     {
         if (_state is null || !CanOpenAnotherPage()) return;
         var assistant = new AiAssistantWindow(State)
@@ -651,6 +632,10 @@ public partial class MainWindow : Window
         };
         ShowEmbeddedPage(assistant, "An · Trợ lý kho vật tư",
             "Giọng nữ tiếng Việt, báo cáo tồn kho, lập đề xuất duyệt và rảnh tay khi thu nhỏ");
+        // Reuse An's existing explicit microphone+Internet consent prompt.
+        // Clicking the homepage shortcut must never silently activate recording.
+        if (startHandsFree)
+            assistant.BeginHandsFreeFromHome();
     }
     private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 
@@ -687,7 +672,11 @@ public partial class MainWindow : Window
     private void NavReports_Click(object sender, RoutedEventArgs e) =>
         RequestRootNavigation(() => NavigateTo("reports"));
     private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(() => NavigateTo("settings"));
+        RequestRootNavigation(() =>
+        {
+            var page = new SoftwareInfoWindow();
+            ShowEmbeddedPage(page, "Thông tin phần mềm", "Phiên bản HISA, điều khoản và hướng dẫn sử dụng");
+        });
 
     private void OpenReplenishment()
     {
