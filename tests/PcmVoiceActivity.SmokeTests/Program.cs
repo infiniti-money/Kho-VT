@@ -169,3 +169,15 @@ var windowsDefaultMic = new MicrophoneDeviceOption(-1, "Default");
 if (windowsDefaultMic.DeviceNumber != -1 || !windowsDefaultMic.Label.Contains("Mặc định"))
     throw new Exception("FAIL Windows default microphone label");
 Console.WriteLine("PASS microphone device option selection shape");
+
+// Fallback is only one audio-understanding request, with safe instructions.
+var fallbackJson = System.Text.Json.JsonSerializer.Serialize(
+    GeminiAssistantClient.BuildFallbackTranscriptionRequest(PcmWav.MakeWav(Frame(1000))));
+using (var doc = System.Text.Json.JsonDocument.Parse(fallbackJson))
+{
+    if (doc.RootElement.GetProperty("model").GetString() != "gemini-3.5-flash-lite" ||
+        doc.RootElement.GetProperty("input")[1].GetProperty("type").GetString() != "audio" ||
+        doc.RootElement.GetProperty("input")[1].GetProperty("mime_type").GetString() != "audio/wav")
+        throw new Exception("FAIL Gemini fallback STT Interactions schema");
+    Console.WriteLine("PASS fallback Gemini Flash-Lite transcription payload");
+}
