@@ -1102,6 +1102,14 @@ public partial class MainWindow : Window
             var newItems = await Task.Run(() =>
             {
                 var known = PrimaryWorkbookReader.ReadStocks(path);
+                var notSynced = draft.Lines.FirstOrDefault(line =>
+                    known.ContainsKey(line.Sku.Trim()) &&
+                    !State.Products.Any(product => product.Active &&
+                        product.Sku.Equals(line.Sku.Trim(), StringComparison.OrdinalIgnoreCase)));
+                if (notSynced is not null)
+                    throw new InvalidDataException(
+                        $"Mã {notSynced.Sku} đã có trong Danh mục Excel nhưng chưa đồng bộ vào HISA. " +
+                        "Hãy Đồng bộ từ Excel trước khi lập phiếu để tránh sai lệch.");
                 var missing = draft.Lines.Where(line => !known.ContainsKey(line.Sku.Trim()))
                     .Select(line => line.Sku.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 if (missing.Count == 0)
