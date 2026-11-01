@@ -157,6 +157,21 @@ public partial class AiAssistantWindow
                 TryHandleAnCommand(transcript);
                 return;
             }
+            if (BravoStockComparison.IsComparisonQuestion(transcript) ||
+                (ReadWorkbooksCheck.IsChecked == true &&
+                 AiInventoryReport.TryAnswerStockBySku(_state, transcript) is not null))
+            {
+                var answer = AnswerFromWorkbooks(transcript);
+                ChatMessages.Add(new AiChatMessage(true, transcript));
+                ChatMessages.Add(new AiChatMessage(false, answer));
+                _lastAssistantText = answer;
+                ScrollToBottom();
+                HandsFreeStatus.Text = "Đã đối chiếu tồn tại máy. An đang đọc kết quả.";
+                await SpeakReplyForHandsFreeAsync(answer, token,
+                    allowCloud: ShareDataCheck.IsChecked == true);
+                if (IsLive(generation, token)) await Task.Delay(750, token);
+                return;
+            }
             // Specific SKU lookup is resolved locally so An never invents
             // the stock of a product omitted from Gemini's shortened context.
             var stockAnswer = AiInventoryReport.TryAnswerStockBySku(_state, transcript);
@@ -197,9 +212,7 @@ public partial class AiAssistantWindow
             ActivityStatus.Text = "Đã nhận dạng: " + transcript;
             HandsFreeStatus.Text = "Gemini đang trả lời…";
 
-            var report = ShareDataCheck.IsChecked == true
-                ? AiInventoryReport.Build(_state, DateOnly.FromDateTime(DateTime.Today))
-                : "Không chia sẻ số liệu kho theo tùy chọn của người sử dụng.";
+            var report = BuildGeminiStockContext();
             var reply = await GeminiAssistantClient.AskAsync(
                 key, transcript, report, _history.ToArray(), token);
             if (!IsLive(generation, token)) return;

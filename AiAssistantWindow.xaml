@@ -88,8 +88,14 @@
                     <Border Background="#EDF6FF" BorderBrush="#D5E7F9" BorderThickness="1" CornerRadius="14" Padding="17">
                         <StackPanel>
                             <TextBlock Text="QUYỀN RIÊNG TƯ &amp; PHÊ DUYỆT" Foreground="#28537E" FontWeight="Bold" FontSize="11"/>
+                            <CheckBox x:Name="ReadWorkbooksCheck" IsChecked="True" FontSize="11.5"
+                                      Foreground="#315D84" Margin="0,11,0,8"
+                                      Content="Cho phép An đọc tại máy KHO.xlsx và file tồn Bravo (chỉ đọc)"/>
+                            <Button Content="Đối chiếu tồn KHO ↔ Bravo" Click="CompareBravo_Click"
+                                    Style="{StaticResource AiSecondary}" Margin="0,0,0,8"
+                                    ToolTip="Đọc hai file đã chọn, so mã hàng và số lượng âm/dương; không sửa Excel"/>
                             <CheckBox x:Name="ShareDataCheck" Margin="0,11,0,10" FontSize="11.5"
-                                      Foreground="#315D84" Content="Cho phép gửi số liệu thống kê kho rút gọn tới Gemini"
+                                      Foreground="#315D84" Content="Cho phép gửi thống kê kho và bản đối chiếu rút gọn tới Gemini"
                                       Checked="Sharing_Changed" Unchecked="Sharing_Changed" />
                             <CheckBox x:Name="SpeakAnswerCheck" FontSize="11.5" Foreground="#315D84"
                                       Content="Đọc câu trả lời bằng giọng Windows" IsChecked="False"/>

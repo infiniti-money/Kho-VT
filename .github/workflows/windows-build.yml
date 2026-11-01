@@ -37,6 +37,9 @@ jobs:
       - name: Test safe Excel append (input cells only)
         run: dotnet run --project tests/ExcelAppend.SmokeTests/ExcelAppend.SmokeTests.csproj --configuration Release --nologo
 
+      - name: Test Bravo A/B/C/L signed stock and read-only comparison
+        run: dotnet run --project tests/BravoStock.SmokeTests/BravoStock.SmokeTests.csproj --configuration Release --nologo
+
       - name: Smoke test offline updater and safe file replacement
         run: dotnet run --project Updater/HisaUpdater.csproj --configuration Release -- --self-test
 

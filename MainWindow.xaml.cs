@@ -946,7 +946,7 @@ public partial class MainWindow : Window
         try
         {
             var page = new ReferenceInventoryWindow(State, State.ReferencePath, State.PrimaryExcelPath);
-            ShowEmbeddedPage(page, "Đối chiếu hai file Excel", "Lấy tồn từ KHO.xlsx, so mã và số lượng với file đối chiếu; không tự ghi vào file nào");
+            ShowEmbeddedPage(page, "Đối chiếu tồn Bravo", "KHO.xlsx ↔ Bravo: A mã · B tên · C ĐVT · L tồn (kể cả số âm); không tự ghi vào file");
         }
         catch (Exception ex) { ShowToast("Không đối chiếu được tồn: " + ex.Message); }
     }

@@ -90,6 +90,51 @@ public partial class AiAssistantWindow : Window
         OpenReplenishment?.Invoke();
     }
 
+    private string BuildGeminiStockContext()
+    {
+        if (ShareDataCheck.IsChecked != true)
+            return "Người dùng chưa đồng ý gửi số liệu kho. Không được suy đoán tồn.";
+        var context = AiInventoryReport.Build(_state, DateOnly.FromDateTime(DateTime.Today));
+        if (ReadWorkbooksCheck.IsChecked == true)
+        {
+            try
+            {
+                // Never transmit the full Excel files. Summarize a bounded
+                // subset and only when the separate Gemini-sharing box is on.
+                context += "\n\n" + BravoStockComparison.BuildSummary(
+                    BravoStockComparison.Read(_state), maxRows: 12);
+            }
+            catch (Exception ex)
+            {
+                context += "\nChưa đối chiếu trực tiếp Bravo: " + ex.Message;
+            }
+        }
+        return context;
+    }
+
+    private string AnswerFromWorkbooks(string question)
+    {
+        if (ReadWorkbooksCheck.IsChecked != true)
+            return "An chưa được bật quyền đọc hai file Excel tại máy. Hãy bật quyền trong phần Quyền riêng tư.";
+        try
+        {
+            return BravoStockComparison.BuildSummary(BravoStockComparison.Read(_state), question);
+        }
+        catch (Exception ex)
+        {
+            return "An chưa đọc/đối chiếu được hai file: " + ex.Message +
+                ". Hãy kiểm tra file KHO.xlsx chính và file tổng hợp Bravo trong Dữ liệu Excel.";
+        }
+    }
+
+    private void CompareBravo_Click(object sender, RoutedEventArgs e)
+    {
+        _lastAssistantText = AnswerFromWorkbooks("đối chiếu tồn Bravo");
+        ChatMessages.Add(new AiChatMessage(false, _lastAssistantText));
+        ActivityStatus.Text = "Đối chiếu tại máy; không gửi file hoặc số liệu sang Gemini.";
+        ScrollToBottom();
+    }
+
     private void LocalReport_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -130,9 +175,7 @@ public partial class AiAssistantWindow : Window
         try { key = GeminiKeyStore.Load(); }
         catch (Exception ex) { ActivityStatus.Text = ex.Message; return; }
 
-        var context = ShareDataCheck.IsChecked == true
-            ? AiInventoryReport.Build(_state, DateOnly.FromDateTime(DateTime.Today))
-            : "Người dùng chưa đồng ý gửi số liệu kho. Không có dữ liệu kho; không được suy đoán tồn.";
+        var context = BuildGeminiStockContext();
         var prior = _history.ToArray();
         _busy = true;
         _manualRequestCts?.Dispose();
@@ -268,6 +311,19 @@ public partial class AiAssistantWindow : Window
 
     private bool TryHandleAnCommand(string question)
     {
+        if (BravoStockComparison.IsComparisonQuestion(question) ||
+            (ReadWorkbooksCheck.IsChecked == true &&
+             AiInventoryReport.TryAnswerStockBySku(_state, question) is not null))
+        {
+            var answer = AnswerFromWorkbooks(question);
+            ChatMessages.Add(new AiChatMessage(true, question));
+            ChatMessages.Add(new AiChatMessage(false, answer));
+            _lastAssistantText = answer;
+            QuestionInput.Clear();
+            ScrollToBottom();
+            ActivityStatus.Text = "An đọc trực tiếp KHO.xlsx và tồn Bravo tại máy; không gửi số liệu sang Gemini.";
+            return true;
+        }
         var stockAnswer = AiInventoryReport.TryAnswerStockBySku(_state, question);
         if (stockAnswer is not null &&
             !AnCatalogEditService.TryParseCommand(question, out _))
