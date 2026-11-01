@@ -1,15 +1,42 @@
 using System.Globalization;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using HisaWarehouse.Services;
 
 namespace HisaWarehouse;
 
-public partial class PrintTemplateWindow : Window
+public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
 {
     private readonly List<PrintTemplate> _templates;
     private PrintTemplate? _current;
     private bool _loading;
+    private readonly string _originalTemplates;
+
+    public bool HasUnsavedChanges =>
+        !string.Equals(_originalTemplates, JsonSerializer.Serialize(_templates), StringComparison.Ordinal) ||
+        !string.IsNullOrWhiteSpace(NewTypeBox.Text) || !CurrentEditorMatchesTemplate();
+
+    private bool CurrentEditorMatchesTemplate()
+    {
+        if (_current is null) return true;
+        try
+        {
+            return OrganizationBox.Text.Trim() == _current.Organization &&
+                TitleBox.Text.Trim() == _current.Title &&
+                HeaderNoteBox.Text.Trim() == _current.HeaderNote &&
+                FooterNoteBox.Text.Trim() == _current.FooterNote &&
+                Signer1Box.Text.Trim() == _current.Signer1 &&
+                Signer2Box.Text.Trim() == _current.Signer2 &&
+                Signer3Box.Text.Trim() == _current.Signer3 &&
+                ((FontBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Arial") == _current.FontName &&
+                ReadNumber(FontSizeBox, "cỡ chữ") == _current.FontSize &&
+                ReadNumber(MarginBox, "lề trang") == _current.MarginMm &&
+                ReadNumber(CellPaddingBox, "đệm ô") == _current.CellPadding &&
+                ((AlignBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Center") == _current.HeaderAlignment;
+        }
+        catch (ArgumentException) { return false; } // Invalid uncommitted numeric edit.
+    }
     public List<PrintTemplate> Templates { get; private set; } = [];
 
     public PrintTemplateWindow(IEnumerable<PrintTemplate> templates)
@@ -17,6 +44,7 @@ public partial class PrintTemplateWindow : Window
         InitializeComponent();
         _templates = templates.Select(Clone).ToList();
         RefreshTypes(_templates.FirstOrDefault()?.Type);
+        _originalTemplates = JsonSerializer.Serialize(_templates);
     }
 
     private static PrintTemplate Clone(PrintTemplate value) => new()
