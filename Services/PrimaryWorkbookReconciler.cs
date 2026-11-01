@@ -198,7 +198,7 @@ public static class PrimaryWorkbookReconciler
         // Include the entire persisted state, not just SKU/quantity. Changes
         // to movement details, pending slips, warehouse configuration or
         // journal metadata while a preview is open must invalidate Apply.
-        var data = InventoryStore.SerializeBackup(state);
+        var data = System.Text.Json.JsonSerializer.Serialize(state);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(data)));
     }
 
