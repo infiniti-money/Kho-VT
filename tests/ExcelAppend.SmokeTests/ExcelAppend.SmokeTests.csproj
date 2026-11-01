@@ -7,6 +7,7 @@
   <ItemGroup>
     <Compile Include="../../Services/PrimaryWorkbookTransactionWriter.cs" Link="PrimaryWorkbookTransactionWriter.cs" />
     <Compile Include="../../Services/PrimaryWorkbookInspector.cs" Link="PrimaryWorkbookInspector.cs" />
+    <Compile Include="../../Services/PrimaryWorkbookTableExpander.cs" Link="PrimaryWorkbookTableExpander.cs" />
     <Compile Include="../../Services/PrimaryWorkbookReader.cs" Link="PrimaryWorkbookReader.cs" />
     <Compile Include="../../Services/ExcelReadSnapshot.cs" Link="ExcelReadSnapshot.cs" />
     <Compile Include="../../Services/WorkbookWriteSafety.cs" Link="WorkbookWriteSafety.cs" />
