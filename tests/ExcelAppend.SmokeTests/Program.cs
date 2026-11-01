@@ -427,7 +427,11 @@ try
         Check(Cell(Sheet(recoveredAutomatically, "xl/worksheets/sheet2.xml"),
                   "I7").Element(m + "f") is not null,
               "restored I7 is a valid formula instead of pasted text");
-    File.Delete(trustedAuto);
+    // Previous save/restore operations also created verified HISA backup
+    // files in this scratch directory. Clear *all* of them to exercise the
+    // genuine no-donor case, rather than accidentally selecting an old one.
+    foreach (var backupFile in Directory.GetFiles(scratch, "KHO.xlsx.HISA-*.bak"))
+        File.Delete(backupFile);
     File.Delete(file);
     BuildWorkbook(missingFormula: true);
     var noDonorHash = PrimaryWorkbookReconciler.Fingerprint(file);
