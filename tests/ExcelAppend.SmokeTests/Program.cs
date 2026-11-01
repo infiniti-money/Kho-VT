@@ -27,7 +27,7 @@ XElement Formula(string address, int row) =>
     new(m + "c", new XAttribute("r", address), new XElement(m + "f", "1+1"),
         new XElement(m + "v", row == 4 ? "12" : "2"));
 
-void BuildWorkbook()
+void BuildWorkbook(bool missingFormula = false)
 {
     using var zip = ZipFile.Open(file, ZipArchiveMode.Create);
     void Add(string name, XDocument data)
@@ -81,7 +81,7 @@ void BuildWorkbook()
             else cells.Add(Blank(col + row));
         }
         foreach (string col in new[] { "E", "F", "H", "I", "J" })
-            cells.Add(Formula(col + row, row));
+            cells.Add(missingFormula && row == 7 && col == "I" ? Blank(col + row) : Formula(col + row, row));
         if (row == 7) cells.Add(Str("M7", "Ô trợ giúp, phải giữ"));
         data.Add(cells);
     }
@@ -180,6 +180,20 @@ try
     {
         Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(originalBytes),
             "capacity >965 rejected without changing workbook");
+    }
+
+    File.Delete(file);
+    BuildWorkbook(missingFormula: true);
+    var missingBefore = SHA256.HashData(File.ReadAllBytes(file));
+    try
+    {
+        PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-004", moved);
+        throw new Exception("Missing calculation formula was accepted.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(missingBefore),
+            "missing Excel formula causes fail-closed without touching source");
     }
 
     Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
