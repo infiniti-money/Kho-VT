@@ -806,23 +806,43 @@ public partial class MainWindow : Window
     private async Task ApplyExcelSyncAsync(PrimaryWorkbookReconciler.Preview proposal)
     {
         Interlocked.Increment(ref _activeExcelCommits);
+        string? backup = null;
+        var persisted = false;
         try
         {
             // A locally retained JSON recovery point precedes every cache reconciliation.
             var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "HISA", "QuanLyKho", "SyncBackups");
             Directory.CreateDirectory(folder);
-            var backup = Path.Combine(folder, "BeforeExcelSync-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + ".json");
+            backup = Path.Combine(folder, "BeforeExcelSync-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + ".json");
             await File.WriteAllTextAsync(backup, InventoryStore.SerializeBackup(State));
             PrimaryWorkbookReconciler.Apply(proposal, State);
             if (!await PersistAsync(false))
                 throw new IOException("Không lưu được dữ liệu mới trên máy; giữ bản sao lưu tại " + backup);
+            persisted = true;
             RenderAll();
             ShowToast($"Đã đồng bộ {proposal.Stocks.Count:N0} mã và {proposal.Transactions.Count:N0} dòng Excel. Không cộng số tồn hai lần.");
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, "Đồng bộ chưa hoàn tất: " + ex.Message +
+            // Apply mutates the in-memory model before WebView2 confirms its
+            // durable save. Roll back that model on failure, so a later save
+            // cannot silently commit a failed reconciliation.
+            string rollbackError = "";
+            if (!persisted && backup is not null && File.Exists(backup))
+            {
+                try
+                {
+                    _state = InventoryStore.ReadBackup(backup)
+                        ?? throw new InvalidDataException("Bản sao lưu trạng thái HISA không hợp lệ.");
+                    RenderAll();
+                }
+                catch (Exception restoreEx)
+                {
+                    rollbackError = "\nKhông thể phục hồi trạng thái đang mở: " + restoreEx.Message;
+                }
+            }
+            MessageBox.Show(this, "Đồng bộ chưa hoàn tất: " + ex.Message + rollbackError +
                 "\nHãy kiểm tra bản sao lưu HISA trước khi thử lại.",
                 "Đối chiếu Excel", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
