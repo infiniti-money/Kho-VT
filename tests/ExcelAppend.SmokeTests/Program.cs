@@ -28,7 +28,8 @@ XElement Formula(string address, int row) =>
     new(m + "c", new XAttribute("r", address), new XElement(m + "f", "1+1"),
         new XElement(m + "v", row == 4 ? "12" : "2"));
 
-void BuildWorkbook(bool missingFormula = false)
+void BuildWorkbook(bool missingFormula = false, bool overwriteFormulaWithText = false,
+    string? sharedSkuValue = null)
 {
     using var zip = ZipFile.Open(file, ZipArchiveMode.Create);
     void Add(string name, XDocument data)
@@ -48,6 +49,10 @@ void BuildWorkbook(bool missingFormula = false)
         new XElement(p + "Relationship", new XAttribute("Id", "rId2"), new XAttribute("Target", "worksheets/sheet2.xml")),
         new XElement(p + "Relationship", new XAttribute("Id", "rId3"), new XAttribute("Target", "worksheets/sheet3.xml")))));
 
+    if (sharedSkuValue is not null)
+        Add("xl/sharedStrings.xml", new XDocument(new XElement(m + "sst",
+            new XElement(m + "si", new XElement(m + "t", sharedSkuValue)))));
+
     var catHeaders = new[] { "Mã hàng", "Tên hàng", "Đơn vị", "Tồn đầu", "Tồn tối thiểu", "Tồn hiện tại" };
     var catalog = new XElement(m + "sheetData",
         new XElement(m + "row", new XAttribute("r", 3),
@@ -56,7 +61,10 @@ void BuildWorkbook(bool missingFormula = false)
     {
         var cells = new XElement(m + "row", new XAttribute("r", row));
         if (row == 4 || row == 5)
-            cells.Add(Str("A" + row, row == 4 ? "VT0001" : "VT0002"),
+            cells.Add(row == 4 && sharedSkuValue is not null
+                    ? new XElement(m + "c", new XAttribute("r", "A4"),
+                        new XAttribute("t", "s"), new XElement(m + "v", "0"))
+                    : Str("A" + row, row == 4 ? "VT0001" : "VT0002"),
                 Str("B" + row, "Vật tư thử"), Str("C" + row, "Cái"), Num("D" + row, 10),
                 Num("E" + row, 2));
         foreach (string col in new[] { "F", "G", "I", "J", "K" })
@@ -89,6 +97,8 @@ void BuildWorkbook(bool missingFormula = false)
         {
             if (missingFormula && row == 7 && col == "I")
                 cells.Add(Blank(col + row));
+            else if (overwriteFormulaWithText && row == 7 && col == "I")
+                cells.Add(Str("I7", "Dữ liệu nhập nhầm"));
             else if (col == "I")
                 cells.Add(new XElement(m + "c", new XAttribute("r", "I" + row),
                     row == 5
@@ -337,6 +347,42 @@ try
     Check(File.Exists(recoveredFrom) &&
           PrimaryWorkbookInspector.Inspect(file).MissingProtectedFormulas == 0,
         "restore writes rollback backup and removes missing formula condition");
+
+    // A pasted text value can leave t="inlineStr" and <is> in the calculated
+    // cell. Restore must remove the stale type and text, not append <f> beside it.
+    File.Delete(file);
+    BuildWorkbook(overwriteFormulaWithText: true);
+    var overwritten = PrimaryFormulaRecovery.Inspect(file, verifiedBackup);
+    Check(overwritten.Missing.Count == 1 && overwritten.Missing[0].Address == "I7",
+        "detect text pasted over the protected formula I7");
+    PrimaryFormulaRecovery.Restore(overwritten);
+    using (var recoveredText = ZipFile.OpenRead(file))
+    {
+        var fixedCell = Cell(Sheet(recoveredText, "xl/worksheets/sheet2.xml"), "I7");
+        Check(fixedCell.Element(m + "f") is not null &&
+              fixedCell.Attribute("t") is null &&
+              fixedCell.Element(m + "is") is null &&
+              fixedCell.Element(m + "v") is null,
+            "formula recovery removes stale inline-string metadata and cached value");
+    }
+
+    // Each workbook owns a different shared-string table: the numeric index
+    // alone is NOT evidence that donor and live catalog SKUs match.
+    File.Delete(file);
+    BuildWorkbook(sharedSkuValue: "VT0001");
+    var donorWithSharedStrings = Path.Combine(scratch, "shared-sku-donor.bak");
+    File.Copy(file, donorWithSharedStrings);
+    File.Delete(file);
+    BuildWorkbook(missingFormula: true, sharedSkuValue: "VT9999");
+    try
+    {
+        PrimaryFormulaRecovery.Inspect(file, donorWithSharedStrings);
+        throw new Exception("Different shared-string SKU was accepted as matching.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(true, "reject backup when shared-string indexes match but decoded SKUs differ");
+    }
 
     Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
 }
