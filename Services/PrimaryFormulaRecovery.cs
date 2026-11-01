@@ -91,10 +91,15 @@ public static class PrimaryFormulaRecovery
                             ?? throw new InvalidDataException("Ô khôi phục bị thiếu: " + missing.Address);
                         var donorFormula = donorCells[missing.Address].Element(M + "f")
                             ?? throw new InvalidDataException("Nguồn không còn công thức tại " + missing.Address);
-                        // Preserve source formula attributes, including shared-formula si,
-                        // but NEVER copy cached result or input contents.
-                        cell.AddFirst(new XElement(donorFormula));
+                        // A user may overwrite a formula with a number, an inline
+                        // string, or an indexed shared string. Reinstating <f>
+                        // without removing the old cell type and payload leaves
+                        // an invalid or misleading Excel formula cell.
+                        // Keep the original cell style and other metadata.
+                        cell.SetAttributeValue("t", null);
                         cell.Element(M + "v")?.Remove();
+                        cell.Element(M + "is")?.Remove();
+                        cell.AddFirst(new XElement(donorFormula));
                     }
                     if (now.Any(c => c.Sheet == sheet)) changed[name] = doc;
                 }
@@ -151,6 +156,11 @@ public static class PrimaryFormulaRecovery
     private static List<FormulaCell> FindMissing(ZipArchive target, ZipArchive source)
     {
         var missing = new List<FormulaCell>();
+        // The two files have independent sharedStrings tables. Comparing raw
+        // <v> indices can falsely equate unrelated SKUs and authorize the
+        // wrong donor workbook for a formula restoration.
+        var targetStrings = SharedStrings(target);
+        var sourceStrings = SharedStrings(source);
         foreach (var (sheet, start, last, cols) in new[]
         {
             ("Danh mục", 4, 900, new[] { "F", "G", "I", "J", "K" }),
@@ -165,8 +175,8 @@ public static class PrimaryFormulaRecovery
             {
                 if (catalog)
                 {
-                    var currentSku = Text(current.GetValueOrDefault("A" + row));
-                    var donorSku = Text(donor.GetValueOrDefault("A" + row));
+                    var currentSku = Text(current.GetValueOrDefault("A" + row), targetStrings);
+                    var donorSku = Text(donor.GetValueOrDefault("A" + row), sourceStrings);
                     if (currentSku != donorSku)
                         throw new InvalidDataException($"Danh mục dòng {row} khác bản sao lưu; không thể xác minh cùng một mẫu.");
                 }
@@ -215,10 +225,26 @@ public static class PrimaryFormulaRecovery
             .Where(c => c.Attribute("r") is not null)
             .ToDictionary(c => (string)c.Attribute("r")!, StringComparer.Ordinal);
 
-    private static string Text(XElement? cell) => cell is null ? "" :
-        (string?)cell.Attribute("t") == "inlineStr"
-            ? string.Concat(cell.Descendants(M + "t").Select(x => x.Value))
-            : (string?)cell.Element(M + "v") ?? "";
+    private static IReadOnlyList<string> SharedStrings(ZipArchive zip) =>
+        zip.GetEntry("xl/sharedStrings.xml") is null
+            ? Array.Empty<string>()
+            : Load(zip, "xl/sharedStrings.xml").Descendants(M + "si")
+                .Select(si => string.Concat(si.Descendants(M + "t").Select(t => t.Value)))
+                .ToArray();
+
+    private static string Text(XElement? cell, IReadOnlyList<string> sharedStrings)
+    {
+        if (cell is null) return "";
+        if ((string?)cell.Attribute("t") == "inlineStr")
+            return string.Concat(cell.Descendants(M + "t").Select(t => t.Value));
+        var raw = (string?)cell.Element(M + "v") ?? "";
+        if ((string?)cell.Attribute("t") != "s") return raw;
+        if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var index) ||
+            index < 0 || index >= sharedStrings.Count)
+            throw new InvalidDataException("Mục sharedStrings không hợp lệ tại " +
+                (string?)cell.Attribute("r") + "; không chấp nhận bản sao lưu.");
+        return sharedStrings[index];
+    }
 
     private static XDocument Load(ZipArchive zip, string name)
     {
