@@ -625,7 +625,8 @@ public partial class MainWindow : Window
         RequestRootNavigation(() => _ = OpenMovementAsync(initialType: "Xuất"));
     private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
     private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
-    private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
+    private void NavReplenishment_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
     private void NavAi_Click(object sender, RoutedEventArgs e) =>
         RequestRootNavigation(() => OpenAiAssistant());
 
@@ -713,7 +714,8 @@ public partial class MainWindow : Window
         {
             OpenChildPage = ShowRequestEditorChild
         };
-        ShowEmbeddedPage(page, "Yêu cầu vật tư", "Tạo và quản lý phiếu yêu cầu cấp hoặc nhập vật tư", accepted =>
+        ShowEmbeddedPage(page, "Phiếu yêu cầu cấp vật tư dự phòng",
+            "Có thể chọn danh mục hoặc nhập tay; lưu/duyệt phiếu không tự thay đổi tồn kho", accepted =>
         {
             if (page.ChangesMade) _ = PersistAsync();
             if (accepted && page.Action == "print" && page.SelectedRequest is MaterialRequest request) PrintRequest(request);
@@ -1733,7 +1735,7 @@ public partial class MainWindow : Window
         AddMetadata(flow, "Số yêu cầu", request.DocNo, "Ngày yêu cầu", request.Date.ToString("dd/MM/yyyy"));
         AddMetadata(flow, "Bộ phận", request.Department, "Cần trước ngày", request.NeededBy?.ToString("dd/MM/yyyy") ?? "—");
         if (!string.IsNullOrWhiteSpace(request.Warehouse)) AddMetadata(flow, "Kho đề xuất", request.Warehouse, "Trạng thái", request.Status);
-        AddMetadata(flow, request.Type == "Yêu cầu cấp vật tư" ? "Người nhận" : "Nhà cung cấp", request.Recipient, "Người yêu cầu", request.Requester);
+        AddMetadata(flow, request.Type == "Yêu cầu nhập vật tư" ? "Nhà cung cấp" : "Người nhận", request.Recipient, "Người yêu cầu", request.Requester);
         var records = request.Lines.Select(line => new InventoryTransaction { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList();
         var requestTable = CreateSlipTable(records);
         PrintTemplateLayout.ApplyTableCellPadding(requestTable, template);
