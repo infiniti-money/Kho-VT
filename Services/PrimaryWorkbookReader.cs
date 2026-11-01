@@ -49,10 +49,11 @@ public static class PrimaryWorkbookReader
         var strings = ReadStrings(zip);
         var doc = ReadSheet(zip, "Nhập Xuất");
         var records = new List<Transaction>();
+        var last = PrimaryWorkbookTableExpander.LastRow(doc);
         foreach (var row in doc.Descendants(MainNs + "sheetData").Elements(MainNs + "row"))
         {
             var index = (int?)row.Attribute("r") ?? 0;
-            if (index < 5 || index > 965) continue;
+            if (index < 5 || index > last) continue;
             var sku = Text(Cell(row, "D" + index), strings).Trim();
             var type = Text(Cell(row, "C" + index), strings).Trim();
             if (string.IsNullOrEmpty(sku) || (type != "Nhập" && type != "Xuất")) continue;

@@ -27,7 +27,6 @@ public static class PrimaryWorkbookTransactionWriter
     private static readonly string[] Writable = ["A", "C", "D", "G", "K", "L"];
     private static readonly string[] Calculated = ["E", "F", "H", "I", "J"];
     private const int FirstDataRow = 5;
-    private const int LastDataRow = 965;
 
     public static Result Append(string workbookPath, string docNo, IReadOnlyList<Input> lines)
     {
@@ -91,22 +90,27 @@ public static class PrimaryWorkbookTransactionWriter
                 calc.SetAttributeValue("fullCalcOnLoad", "1");
                 calc.SetAttributeValue("forceFullCalc", "1");
                 var sheetData = document.Descendants(M + "sheetData").Single();
+                var currentLast = PrimaryWorkbookTableExpander.LastRow(document);
+                PrimaryWorkbookTableExpander.VerifyTableBoundary(originalZip, currentLast);
                 var rows = sheetData.Elements(M + "row")
                     .ToDictionary(x => (int?)x.Attribute("r") ?? 0);
                 var sharedStrings = ReadStrings(originalZip);
                 var occupiedEnd = FirstDataRow - 1;
-                for (int row = FirstDataRow; row <= LastDataRow; row++)
+                for (int row = FirstDataRow; row <= currentLast; row++)
                 {
                     if (!rows.TryGetValue(row, out var node)) continue;
                     if (Writable.Concat(["B"]).Any(col => !IsBlank(node, col + row, sharedStrings)))
                         occupiedEnd = row;
                 }
                 firstRow = occupiedEnd + 1;
-                if (firstRow + lines.Count - 1 > LastDataRow)
-                    throw new InvalidDataException(
-                        $"Sheet Nhập Xuất chỉ có vùng công thức đến dòng {LastDataRow}. " +
-                        $"Cần thêm {lines.Count} dòng, còn {Math.Max(0, LastDataRow - occupiedEnd)} dòng. " +
-                        "HISA không tự ghi ngoài phạm vi công thức.");
+                var targetLast = PrimaryWorkbookTableExpander.RequiredLastRow(
+                    currentLast, occupiedEnd, lines.Count);
+                var changedParts = PrimaryWorkbookTableExpander.Prepare(
+                    originalZip, sheetEntry, document, currentLast, targetLast);
+                rows = sheetData.Elements(M + "row")
+                    .ToDictionary(x => (int?)x.Attribute("r") ?? 0);
+                if (targetLast - (occupiedEnd + lines.Count) < PrimaryWorkbookTableExpander.MinimumSpareRows)
+                    throw new InvalidDataException("Không đảm bảo được 50 dòng nhập liệu trống.");
 
                 var token = "[HISA:" + docNo + "]";
                 if (document.Descendants(M + "c").Where(c => ((string?)c.Attribute("r"))?.StartsWith("L", StringComparison.Ordinal) == true)
@@ -148,10 +152,10 @@ public static class PrimaryWorkbookTransactionWriter
                         created.LastWriteTime = entry.LastWriteTime;
                         created.ExternalAttributes = entry.ExternalAttributes;
                         using var outStream = created.Open();
-                        if (entry.FullName.Equals(sheetEntry, StringComparison.Ordinal))
-                            document.Save(outStream, SaveOptions.DisableFormatting);
-                        else if (entry.FullName == "xl/workbook.xml")
+                        if (entry.FullName == "xl/workbook.xml")
                             workbookMetadata.Save(outStream, SaveOptions.DisableFormatting);
+                        else if (changedParts.TryGetValue(entry.FullName, out var changed))
+                            changed.Save(outStream, SaveOptions.DisableFormatting);
                         else
                         {
                             using var inStream = entry.Open();
@@ -171,7 +175,7 @@ public static class PrimaryWorkbookTransactionWriter
                 {
                     if (!expected.TryGetValue(entry.FullName, out var oldEntry))
                         throw new InvalidDataException("Gói Excel có thành phần lạ.");
-                    if (entry.FullName == sheetEntry || entry.FullName == "xl/workbook.xml") continue;
+                    if (entry.FullName == "xl/workbook.xml" || changedParts.ContainsKey(entry.FullName)) continue;
                     using var oldStream = oldEntry.Open();
                     using var newStream = entry.Open();
                     if (!SHA256.HashData(oldStream).SequenceEqual(SHA256.HashData(newStream)))

@@ -26,7 +26,7 @@
         <Border Background="#153951" Padding="24,18">
             <StackPanel>
                 <TextBlock Text="THIẾT KẾ MẪU PHIẾU IN" Foreground="#FFFFFF" FontWeight="Bold" FontSize="21"/>
-                <TextBlock Text="Thêm, xóa mẫu, căn lề, cỡ chữ và xem trước A4. Không thay đổi mẫu Excel gốc."
+                <TextBlock Text="Phiếu Nhập/Xuất in theo sheet Phiếu in trong KHO.xlsx; chỉnh trực tiếp mẫu đó bằng Excel. Các mẫu tại đây dùng cho phiếu yêu cầu HISA."
                            Foreground="#C8E4ED" Margin="0,7,0,0"/>
             </StackPanel>
         </Border>
