@@ -9,7 +9,10 @@ namespace HisaWarehouse.Services;
 
 /// <summary>
 /// Appends confirmed Nhập / Xuất rows to the EXISTING table in KHO.xlsx.
-/// Only A,C,D,G,K,L may be assigned. B and calculated E,F,H,I,J remain untouched.
+/// Write A=date, B=print document number, C=type, D=SKU, E=name,
+/// F=unit, G=quantity, K=partner and L=note, but NEVER replace E/F formulas.
+/// H/I/J formulas are mandatory; any missing formulas must first be restored
+/// only from verified backups. All other workbook data remains untouched.
 /// All ZIP parts other than the "Nhập Xuất" sheet and Excel calc metadata
 /// are copied unchanged. Existing formulas are never overwritten.
 /// No rewriting through ClosedXML: charts, 5 other sheets, external links,
@@ -26,8 +29,8 @@ public static class PrimaryWorkbookTransactionWriter
     private static readonly XNamespace M = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     private static readonly XNamespace P = "http://schemas.openxmlformats.org/package/2006/relationships";
-    private static readonly string[] Writable = ["A", "C", "D", "G", "K", "L"];
-    private static readonly string[] Calculated = ["E", "F", "H", "I", "J"];
+    private static readonly string[] Writable = ["A", "B", "C", "D", "E", "F", "G", "K", "L"];
+    private static readonly string[] Calculated = ["H", "I", "J"];
     private const int FirstDataRow = 5;
 
     public static Result Append(string workbookPath, string docNo, IReadOnlyList<Input> lines,
@@ -125,7 +128,7 @@ public static class PrimaryWorkbookTransactionWriter
                 for (int row = FirstDataRow; row <= currentLast; row++)
                 {
                     if (!rows.TryGetValue(row, out var node)) continue;
-                    if (Writable.Concat(["B"]).Any(col => !IsBlank(node, col + row, sharedStrings)))
+                    if (Writable.Any(col => !IsBlank(node, col + row, sharedStrings)))
                         occupiedEnd = row;
                 }
                 firstRow = occupiedEnd + 1;
@@ -192,17 +195,37 @@ public static class PrimaryWorkbookTransactionWriter
                     foreach (var col in Calculated)
                         if (Cell(row, col + rowNumber)?.Element(M + "f") is null)
                             throw new InvalidDataException($"Thiếu công thức {col}{rowNumber}; dừng ghi.");
-                    foreach (var col in Writable.Concat(["B"]))
+                    foreach (var col in Writable)
                     {
                         var cell = Cell(row, col + rowNumber);
-                        if (cell?.Element(M + "f") is not null || !string.IsNullOrWhiteSpace(CellText(cell, sharedStrings)))
+                        // E/F may be existing Excel lookup formulas. They must
+                        // remain intact and be recalculated by Excel.
+                        if ((col == "E" || col == "F") &&
+                            cell?.Element(M + "f") is not null)
+                            continue;
+                        if (cell?.Element(M + "f") is not null ||
+                            !string.IsNullOrWhiteSpace(CellText(cell, sharedStrings)))
                             throw new InvalidDataException($"Ô {col}{rowNumber} không trống hoặc có công thức; dừng ghi.");
+                        EnsureCatalogCell(row, col + rowNumber);
                     }
                     var line = lines[i];
-                    // Column B is the original Excel printing selector; intentionally unchanged.
+                    // B stores the document number used by the print slip.
+                    // Formula-backed E/F are left for Excel to resolve; plain
+                    // input E/F get the SKU's validated name and unit.
+                    var material = knownSkus.TryGetValue(line.Sku.Trim(), out var known)
+                        ? (Name: known.Name, Unit: known.Unit)
+                        : (Name: requested[line.Sku.Trim()].Name, Unit: requested[line.Sku.Trim()].Unit);
+                    if (string.IsNullOrWhiteSpace(material.Name) ||
+                        string.IsNullOrWhiteSpace(material.Unit))
+                        throw new InvalidDataException($"Mã {line.Sku} thiếu tên hoặc đơn vị tính trong danh mục.");
                     SetNumber(row, "A" + rowNumber, line.Date.ToDateTime(TimeOnly.MinValue).ToOADate());
+                    SetString(row, "B" + rowNumber, docNo);
                     SetString(row, "C" + rowNumber, line.Type);
                     SetString(row, "D" + rowNumber, line.Sku.Trim());
+                    if (Cell(row, "E" + rowNumber)?.Element(M + "f") is null)
+                        SetString(row, "E" + rowNumber, material.Name);
+                    if (Cell(row, "F" + rowNumber)?.Element(M + "f") is null)
+                        SetString(row, "F" + rowNumber, material.Unit);
                     SetNumber(row, "G" + rowNumber, line.Quantity);
                     SetString(row, "K" + rowNumber, line.GiaoNhan.Trim());
                     var note = line.Note.Trim();
