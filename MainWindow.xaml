@@ -393,14 +393,7 @@
                     <StackPanel>
                         <TextBlock Text="Dữ liệu Excel và sao lưu" Foreground="#172B45" FontSize="21" FontWeight="Bold" />
                         <TextBlock Text="Thông tin nguồn Excel, dữ liệu lưu cục bộ và công cụ phục hồi" Foreground="#78899E" FontSize="11" Margin="0,4,0,17" />
-                        <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
-                            <StackPanel>
-                                <TextBlock Text="Thông tin phần mềm" Style="{StaticResource SectionTitle}"/>
-                                <TextBlock x:Name="SystemInfoText" Margin="0,8,0,5" Foreground="#4E6883" FontSize="12" TextWrapping="Wrap"/>
-                                <TextBlock Text="HISA Kho-VT · Phần mềm quản lý kho Windows · Tài liệu và bản phát hành tại github.com/infiniti-money/Kho-VT"
-                                           Foreground="#7A8BA0" FontSize="11" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
+                        <TextBlock x:Name="SystemInfoText" Visibility="Collapsed"/>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Bản sao lưu dữ liệu" Style="{StaticResource SectionTitle}"/><TextBlock Text="Xuất hoặc phục hồi danh mục, số dư theo kho và nhật ký giao dịch." Foreground="#78899E" FontSize="11" Margin="0,5,0,0"/></StackPanel><StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="Nhập bản sao lưu" Style="{StaticResource SecondaryButton}" Click="ImportBackup_Click" Margin="0,0,8,0"/><Button Content="Xuất bản sao lưu" Style="{StaticResource PrimaryButton}" Click="ExportBackup_Click"/></StackPanel></Grid></Border>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14"><StackPanel><TextBlock Text="Nguồn dữ liệu ban đầu" Style="{StaticResource SectionTitle}"/><TextBlock x:Name="SettingsSourceText" Text="KHO.xlsx" Foreground="#586C84" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/><TextBlock x:Name="SettingsAuditText" Text="" Foreground="#78899E" FontSize="11" TextWrapping="Wrap" Margin="0,7,0,0"/></StackPanel></Border>
                         <Border Style="{StaticResource Panel}" Margin="0,0,0,14">
