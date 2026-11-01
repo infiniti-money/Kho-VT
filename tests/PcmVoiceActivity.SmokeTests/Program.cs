@@ -134,3 +134,38 @@ if (!GeminiAssistantClient.ApiFailure(System.Net.HttpStatusCode.TooManyRequests,
     .Message.Contains("hạn mức", StringComparison.OrdinalIgnoreCase))
     throw new Exception("FAIL quota-specific API diagnostic.");
 Console.WriteLine("PASS Gemini HTTP 429 diagnostic never exposes API key");
+
+// Verify TTS payload obeys Interactions schema and WAV output is parsed.
+var ttsRequest = System.Text.Json.JsonSerializer.Serialize(
+    AnGeminiSpeechService.BuildSpeechRequest("Xin chào, tôi là An."));
+using (var document = System.Text.Json.JsonDocument.Parse(ttsRequest))
+{
+    var root = document.RootElement;
+    if (root.GetProperty("model").GetString() != "gemini-3.8-flash-lite-tts" ||
+        root.GetProperty("response_format").GetProperty("type").GetString() != "audio" ||
+        root.GetProperty("input")[0].GetProperty("content")[0].GetProperty("annotations")[0]
+            .GetProperty("type").GetString() != "speech_metadata" ||
+        root.GetProperty("generation_config").GetProperty("speech_config")[0]
+            .GetProperty("voice").GetString() != "Leda")
+        throw new Exception("FAIL Gemini TTS Interactions schema / female voice.");
+    Console.WriteLine("PASS Gemini TTS Interactions request/voice schema");
+}
+var expectedWav = PcmWav.MakeWav(Frame(620));
+var fakeTtsJson = System.Text.Json.JsonSerializer.Serialize(new
+{
+    steps = new object[] { new {
+        type = "model_output", content = new object[] {
+            new { type = "audio", data = Convert.ToBase64String(expectedWav) }
+        }
+    } }
+});
+using (var output = System.Text.Json.JsonDocument.Parse(fakeTtsJson))
+{
+    if (!AnGeminiSpeechService.ExtractWav(output.RootElement).SequenceEqual(expectedWav))
+        throw new Exception("FAIL Gemini TTS in-memory WAV parsing.");
+    Console.WriteLine("PASS Gemini TTS WAV decoding from Interactions response");
+}
+var windowsDefaultMic = new MicrophoneDeviceOption(-1, "Default");
+if (windowsDefaultMic.DeviceNumber != -1 || !windowsDefaultMic.Label.Contains("Mặc định"))
+    throw new Exception("FAIL Windows default microphone label");
+Console.WriteLine("PASS microphone device option selection shape");
