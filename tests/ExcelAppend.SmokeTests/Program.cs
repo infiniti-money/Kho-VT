@@ -225,7 +225,11 @@ try
         new PrimaryWorkbookTransactionWriter.Input(new DateOnly(2026, 11, 1), "Nhập", "VT0001", 4, "Nhân viên A", "Kiểm tra"),
         new PrimaryWorkbookTransactionWriter.Input(new DateOnly(2026, 11, 1), "Nhập", "VT0002", 2.5, "Nhân viên A", "")
     };
-    var result = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-001", moved);
+    var trustedBeforeWrite = PrimaryWorkbookReconciler.Fingerprint(file);
+    var result = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-001", moved, trustedBeforeWrite);
+    Check(result.WorkbookHash == PrimaryWorkbookReconciler.Fingerprint(file) &&
+          result.WorkbookHash != trustedBeforeWrite,
+        "return exact staged workbook fingerprint for subsequent HISA writes");
     Check(result.FirstRow == 7 && result.RowCount == 2, "append after all existing business rows incl incomplete legacy row");
     Check(File.Exists(result.BackupPath), "original is backed up before atomic replacement");
     using (var workbook = ZipFile.OpenRead(file))
@@ -253,6 +257,17 @@ try
               workbook.GetEntry("xl/externalLinks/externalLink1.xml") is not null,
               "keep chart and external workbook links");
     }
+    var changedBytes = SHA256.HashData(File.ReadAllBytes(file));
+    try
+    {
+        PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-NEW", moved, trustedBeforeWrite);
+        throw new Exception("Externally changed workbook was accepted.");
+    }
+    catch (IOException)
+    {
+        Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(changedBytes),
+            "reject stale cached fingerprint before writing even with a fresh document ID");
+    }
     try
     {
         PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-001", moved);
@@ -279,7 +294,7 @@ try
     File.Delete(lockPath);
 
     var many = Enumerable.Repeat(moved[0], 920).ToArray();
-    var expanded = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-003", many);
+    var expanded = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-003", many, result.WorkbookHash);
     Check(expanded.FirstRow == 9, "automatically append 920 lines after prior transactions");
     using (var workbook = ZipFile.OpenRead(file))
     {
