@@ -79,7 +79,7 @@
         <Border Grid.Row="3" Background="White" BorderBrush="#E3E9F1" BorderThickness="0,1,0,0" Padding="22,14">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock Text="Yêu cầu mới ở trạng thái “Chờ xử lý”, không phát sinh giao dịch kho." Foreground="#78899E" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock Text="An tạo phiếu “Chờ duyệt”, bạn sẽ duyệt riêng trước khi xử lý. Không tự cập nhật tồn." Foreground="#78899E" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"/>
                 <Button Grid.Column="1" Content="Quay lại" Click="Cancel_Click" Padding="16,9" Margin="0,0,9,0"/>
                 <Button Grid.Column="2" Content="Tạo yêu cầu nhập kho" Click="CreateRequest_Click" Padding="18,9" Background="#2463EB" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
             </Grid>
