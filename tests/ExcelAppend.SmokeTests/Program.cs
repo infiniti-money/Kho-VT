@@ -123,6 +123,10 @@ try
     using (var workbook = ZipFile.OpenRead(file))
     {
         var tx = Sheet(workbook, "xl/worksheets/sheet2.xml");
+        var recalc = Sheet(workbook, "xl/workbook.xml").Descendants(m + "calcPr").Single();
+        Check((string?)recalc.Attribute("fullCalcOnLoad") == "1" &&
+              (string?)recalc.Attribute("forceFullCalc") == "1",
+              "force Excel to recalculate preserved formula results when workbook opens");
         Check(Text(Cell(tx, "C7")) == "Nhập" && Text(Cell(tx, "D7")) == "VT0001" &&
               Text(Cell(tx, "G7")) == "4" && Text(Cell(tx, "K7")) == "Nhân viên A",
               "write only typed input columns");
