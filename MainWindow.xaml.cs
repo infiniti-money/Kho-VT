@@ -646,7 +646,8 @@ public partial class MainWindow : Window
         var assistant = new AiAssistantWindow(State)
         {
             OpenReplenishment = () => OpenReplenishment(),
-            ReviewCatalogEdit = ReviewAnCatalogEdit
+            ReviewCatalogEdit = ReviewAnCatalogEdit,
+            BringToForeground = RestoreFromAnTray
         };
         ShowEmbeddedPage(assistant, "An · Trợ lý kho vật tư",
             "Giọng nữ tiếng Việt, báo cáo tồn kho, lập đề xuất duyệt và rảnh tay khi thu nhỏ");
