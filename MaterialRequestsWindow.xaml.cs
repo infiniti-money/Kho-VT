@@ -46,7 +46,9 @@ public partial class MaterialRequestsWindow : Window
         CreateRequest("Yêu cầu cấp vật tư dự phòng");
     private void CreateRequest(string type)
     {
-        var editor = new MaterialRequestEditorWindow(_state, type) { Owner = this };
+        // This page is hosted inside MainWindow, not shown as a WPF Window.
+        // The embedding host controls focus and navigation; do not set Owner.
+        var editor = new MaterialRequestEditorWindow(_state, type);
         if (OpenChildPage is not null)
         {
             OpenChildPage(editor, accepted => { if (accepted && editor.ResultRequest is MaterialRequest nestedRequest) SaveRequest(nestedRequest, type); });
