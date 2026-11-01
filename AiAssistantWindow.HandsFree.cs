@@ -156,7 +156,8 @@ public partial class AiAssistantWindow
                 ChatMessages.Add(new AiChatMessage(false, briefing));
                 ScrollToBottom();
                 HandsFreeStatus.Text = "An đang đọc báo cáo; micro tạm dừng.";
-                await SpeakReplyForHandsFreeAsync(briefing, token);
+                await SpeakReplyForHandsFreeAsync(briefing, token,
+                    allowCloud: ShareDataCheck.IsChecked == true);
                 if (IsLive(generation, token)) await Task.Delay(750, token);
                 return;
             }
@@ -217,7 +218,8 @@ public partial class AiAssistantWindow
         }
     }
 
-    private async Task SpeakReplyForHandsFreeAsync(string reply, CancellationToken token)
+    private async Task SpeakReplyForHandsFreeAsync(string reply, CancellationToken token,
+        bool allowCloud = true)
     {
         // Gemini can synthesize a soft Northern Vietnamese female voice without
         // requiring Windows 11 to have a vi-VN SAPI voice installed.
@@ -225,8 +227,13 @@ public partial class AiAssistantWindow
         _speechPlaybackCts = speechToken;
         try
         {
-            await AnGeminiSpeechService.SpeakAsync(GeminiKeyStore.Load(), reply, speechToken.Token);
-            return;
+            // A locally computed report is PRIVATE when ShareDataCheck is off.
+            // Never send stock quantities in TTS requests without consent.
+            if (allowCloud)
+            {
+                await AnGeminiSpeechService.SpeakAsync(GeminiKeyStore.Load(), reply, speechToken.Token);
+                return;
+            }
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
