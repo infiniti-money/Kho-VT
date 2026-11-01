@@ -444,6 +444,7 @@ public partial class AiAssistantWindow
         StopHandsFree("Rảnh tay đã dừng.");
         StopManualMicrophone();
         _manualRequestCts?.Cancel();
+        try { _manualTtsCts?.Cancel(); } catch { }
         try { _speaker?.SpeakAsyncCancelAll(); } catch { }
     }
 
