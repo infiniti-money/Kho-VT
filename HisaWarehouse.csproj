@@ -18,6 +18,7 @@
   <ItemGroup>
     <!-- Avoid global System.Windows.Forms imports colliding with WPF controls. -->
     <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>
