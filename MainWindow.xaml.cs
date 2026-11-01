@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private string _embeddedReturnPage = "dashboard";
     private Action<bool>? _confirmationCompletion;
     private readonly SemaphoreSlim _excelMovementWriteGate = new(1, 1);
+    private int _activeExcelCommits;
 
     public ObservableCollection<InventoryRow> InventoryRows { get; } = [];
     public ObservableCollection<InventoryRow> LabelRows { get; } = [];
@@ -45,6 +46,12 @@ public partial class MainWindow : Window
         SystemInfoText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Windows x64 · HISA Kho-VT";
         _toastTimer.Tick += (_, _) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
         EmbeddedWindowNavigation.NotificationRequested += ShowToast;
+        Closing += (_, e) =>
+        {
+            if (Volatile.Read(ref _activeExcelCommits) == 0) return;
+            e.Cancel = true;
+            ShowToast("Đang ghi phiếu vào Excel và lưu nhật ký HISA. Vui lòng chờ hoàn tất.");
+        };
         Closed += (_, _) =>
         {
             if (_currentEmbeddedPage?.Source is AiAssistantWindow activeAi)
@@ -888,10 +895,22 @@ public partial class MainWindow : Window
             ShowToast($"Đã lưu {docNo} ở trạng thái chờ xác nhận; tồn kho chưa thay đổi.");
             return;
         }
-        if (!await TryWriteMovementToExcelAsync(draft, docNo)) return;
-        ApplyMovement(draft, docNo);
-        await PersistAsync(false);
-        ShowToast($"Đã lưu {docNo} vào sheet Nhập Xuất và nhật ký HISA. Có thể mở báo cáo để in.");
+        Interlocked.Increment(ref _activeExcelCommits);
+        try
+        {
+            if (!await TryWriteMovementToExcelAsync(draft, docNo)) return;
+            ApplyMovement(draft, docNo);
+            if (!await PersistAsync(false))
+            {
+                MessageBox.Show(this,
+                    $"Excel đã nhận phiếu {docNo} nhưng HISA chưa lưu được nhật ký trên máy. " +
+                    "Không lập lại phiếu để tránh trùng Excel. Hãy giữ nguyên file và kiểm tra nhật ký HISA.",
+                    "Cần đối chiếu dữ liệu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            ShowToast($"Đã lưu {docNo} vào sheet Nhập Xuất và nhật ký HISA. Có thể mở báo cáo để in.");
+        }
+        finally { Interlocked.Decrement(ref _activeExcelCommits); }
     }
 
     private async Task<bool> TryWriteMovementToExcelAsync(MovementDraft draft, string docNo)
@@ -1058,11 +1077,23 @@ public partial class MainWindow : Window
             Lines = pending.Lines.Select(line => new MovementLine { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList()
         };
         if (!ValidateCurrentStock(movementDraft)) return;
-        if (!await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo)) return;
-        ApplyMovement(movementDraft, pending.DocNo);
-        pending.Status = "Đã xác nhận";
-        await PersistAsync(false);
-        ShowToast($"Đã xác nhận {pending.DocNo} và ghi sheet Nhập Xuất (nếu là Nhập/Xuất).");
+        Interlocked.Increment(ref _activeExcelCommits);
+        try
+        {
+            if (!await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo)) return;
+            ApplyMovement(movementDraft, pending.DocNo);
+            pending.Status = "Đã xác nhận";
+            if (!await PersistAsync(false))
+            {
+                MessageBox.Show(this,
+                    $"Excel đã ghi phiếu {pending.DocNo}, nhưng HISA chưa lưu được trạng thái xác nhận. " +
+                    "Không xác nhận lại phiếu cho đến khi đã đối chiếu hai bên.",
+                    "Cần đối chiếu dữ liệu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            ShowToast($"Đã xác nhận {pending.DocNo} và ghi sheet Nhập Xuất (nếu là Nhập/Xuất).");
+        }
+        finally { Interlocked.Decrement(ref _activeExcelCommits); }
     }
 
     private bool ValidateCurrentStock(MovementDraft draft)
