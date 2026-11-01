@@ -146,8 +146,21 @@ public static class PrimaryWorkbookReconciler
     {
         var owned = state.Transactions.Where(t => !t.Legacy && t.Type is "Nhập" or "Xuất")
             .GroupBy(t => t.DocNo, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
-        foreach (var group in rows.Where(r => DocumentMarker(r.Note).Length > 0)
-            .GroupBy(r => DocumentMarker(r.Note), StringComparer.Ordinal))
+        // Only newly committed HISA movements carry a source-row anchor.
+        // Earlier local records have no anchor and must not be mistaken for
+        // missing Excel documents when upgrading an existing installation.
+        var signedGroups = rows.Where(r => DocumentMarker(r.Note).Length > 0)
+            .GroupBy(r => DocumentMarker(r.Note), StringComparer.Ordinal).ToArray();
+        var signedDocs = signedGroups.Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        var anchoredDocs = state.Transactions.Where(t =>
+                !t.Legacy && t.SourceRow.HasValue && t.Type is "Nhập" or "Xuất")
+            .Select(t => t.DocNo).Distinct(StringComparer.Ordinal);
+        foreach (var docNo in anchoredDocs)
+            if (!signedDocs.Contains(docNo))
+                throw new InvalidDataException(
+                    $"Phiếu {docNo} do HISA ghi trước đây đã mất dấu nhận diện trong Excel. " +
+                    "Không tự đồng bộ vì phiếu có thể bị xóa hoặc sửa; hãy đối chiếu thủ công.");
+        foreach (var group in signedGroups)
         {
             if (!owned.TryGetValue(group.Key, out var local)) continue;
             var actual = group.Select(r => (r.Type, r.Sku, r.Quantity))
@@ -182,12 +195,11 @@ public static class PrimaryWorkbookReconciler
 
     private static string StateSignature(InventoryState state)
     {
-        var data = string.Join("\n", state.Products.OrderBy(p => p.Sku).Select(p =>
-            p.Sku + "|" + p.Name + "|" + p.Unit + "|" + p.MinStock.ToString("R", CultureInfo.InvariantCulture) +
-            "|" + string.Join(",", p.WarehouseStocks.OrderBy(x => x.Key).Select(x =>
-                x.Key + "=" + x.Value.ToString("R", CultureInfo.InvariantCulture)))))
-            + "\n" + string.Join("\n", state.Transactions.Select(t =>
-                t.Id + "|" + t.DocNo + "|" + t.Sku + "|" + t.Quantity?.ToString("R", CultureInfo.InvariantCulture)));
+        // Include the entire persisted state, not just SKU/quantity. Changes
+        // to movement details, pending slips, warehouse configuration or
+        // journal metadata while a preview is open must invalidate Apply.
+        var data = InventoryStore.SerializeBackup(state);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(data)));
     }
+
 }
