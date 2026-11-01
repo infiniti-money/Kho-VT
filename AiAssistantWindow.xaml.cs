@@ -101,12 +101,12 @@ public partial class AiAssistantWindow : Window
             {
                 // Never transmit the full Excel files. Summarize a bounded
                 // subset and only when the separate Gemini-sharing box is on.
-                context += "\\n\\n" + BravoStockComparison.BuildSummary(
+                context += "\n\n" + BravoStockComparison.BuildSummary(
                     BravoStockComparison.Read(_state), maxRows: 12);
             }
             catch (Exception ex)
             {
-                context += "\\nChưa đối chiếu trực tiếp Bravo: " + ex.Message;
+                context += "\nChưa đối chiếu trực tiếp Bravo: " + ex.Message;
             }
         }
         return context;
