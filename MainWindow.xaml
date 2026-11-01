@@ -101,7 +101,7 @@
                         <StackPanel Orientation="Horizontal"><TextBlock Text="⇄" Width="29" FontSize="17"/><TextBlock Text="Nhập / xuất kho" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="NavPending" Style="{StaticResource NavButton}" Click="NavPending_Click" ToolTip="Phiếu chờ xác nhận">
-                        <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="29" FontSize="17"/><TextBlock Text="Phiếu chờ xác nhận" VerticalAlignment="Center"/></StackPanel>
+                        <StackPanel Orientation="Horizontal"><TextBlock Text="◷" Width="29" FontSize="17"/><TextBlock x:Name="NavPendingText" Text="Phiếu chờ xác nhận" VerticalAlignment="Center"/></StackPanel>
                     </Button>
                     <Button x:Name="NavRequests" Style="{StaticResource NavButton}" Click="NavRequests_Click" ToolTip="Phiếu yêu cầu vật tư">
                         <StackPanel Orientation="Horizontal"><TextBlock Text="▧" Width="29" FontSize="17"/><TextBlock Text="Phiếu yêu cầu vật tư" VerticalAlignment="Center"/></StackPanel>
