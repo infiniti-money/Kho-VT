@@ -109,8 +109,18 @@ public static class PrimaryWorkbookTableExpander
         }
 
         var formulas = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var col in new[] { "E", "F", "H", "I", "J" })
+        foreach (var col in new[] { "H", "I", "J" })
             formulas[col] = FormulaAt(col + oldLastRow);
+        // Existing template E/F can contain calculated name/unit lookups;
+        // a different valid template may use plain input E/F. Preserve the
+        // template's behavior rather than replacing a formula with a value.
+        foreach (var col in new[] { "E", "F" })
+        {
+            var lookupCell = prototype.Elements(M + "c")
+                .FirstOrDefault(cell => (string?)cell.Attribute("r") == col + oldLastRow);
+            if (lookupCell?.Element(M + "f") is not null)
+                formulas[col] = FormulaAt(col + oldLastRow);
+        }
 
         for (int rowNo = oldLastRow + 1; rowNo <= targetLastRow; rowNo++)
         {
