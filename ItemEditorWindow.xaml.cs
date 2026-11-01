@@ -6,7 +6,7 @@ using HisaWarehouse.Services;
 
 namespace HisaWarehouse;
 
-public partial class ItemEditorWindow : Window
+public partial class ItemEditorWindow : Window, IWorkspaceDirtyPage
 {
     private readonly InventoryState _state;
     private readonly InventoryItem? _source;
@@ -17,6 +17,15 @@ public partial class ItemEditorWindow : Window
     private bool _barcodeOverridden;
     private bool _syncingBarcode;
     private string? _imageDataUrl;
+    private readonly WorkspaceFormSnapshot _navigationSnapshot;
+
+    public bool HasUnsavedChanges => _navigationSnapshot.HasChanges;
+
+    private string CaptureForm() => WorkspaceFormSnapshot.Serialize(
+        SkuBox.Text, BarcodeBox.Text, NameBox.Text, CategoryBox.Text,
+        UnitBox.Text, DepartmentBox.Text, MinimumBox.Text, _imageDataUrl,
+        _stockInputs.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new { Warehouse = kv.Key, Value = kv.Value.Text }).ToArray());
 
     public InventoryItem? ResultItem { get; private set; }
 
@@ -68,6 +77,7 @@ public partial class ItemEditorWindow : Window
         }
         _isPopulating = false;
         UpdateBarcodePreview();
+        _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
     }
 
     private static string GenerateSku(InventoryState state)
