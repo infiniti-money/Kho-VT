@@ -17,6 +17,7 @@ public partial class AiAssistantWindow
     private CancellationTokenSource? _manualMicCts;
     private int _manualMicGeneration;
     private SpeechSynthesizer? _handsFreeSpeaker;
+    private CancellationTokenSource? _speechPlaybackCts;
 
     private bool IsLive(int generation, CancellationToken token) =>
         _handsFreeEnabled && !_sessionClosed && generation == _handsFreeGeneration &&
@@ -187,6 +188,29 @@ public partial class AiAssistantWindow
 
     private async Task SpeakReplyForHandsFreeAsync(string reply, CancellationToken token)
     {
+        // Gemini can synthesize a soft Northern Vietnamese female voice without
+        // requiring Windows 11 to have a vi-VN SAPI voice installed.
+        using var speechToken = CancellationTokenSource.CreateLinkedTokenSource(token);
+        _speechPlaybackCts = speechToken;
+        try
+        {
+            await AnGeminiSpeechService.SpeakAsync(GeminiKeyStore.Load(), reply, speechToken.Token);
+            return;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            // User pressed Stop speaking. Resume the mic after the quiet gap.
+            return;
+        }
+        catch (Exception error) when (!token.IsCancellationRequested)
+        {
+            ActivityStatus.Text = "Gemini chưa phát được giọng nữ. An thử giọng nữ tiếng Việt trên Windows: " +
+                error.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_speechPlaybackCts, speechToken)) _speechPlaybackCts = null;
+        }
         using var speaker = new SpeechSynthesizer();
         _handsFreeSpeaker = speaker;
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -346,6 +370,7 @@ public partial class AiAssistantWindow
         _handsFreeCts = null;
         cts?.Cancel();
         StopCapture();
+        try { _speechPlaybackCts?.Cancel(); } catch { }
         try { _handsFreeSpeaker?.SpeakAsyncCancelAll(); } catch { }
         HandsFreeButton.Content = "🎙 Bật rảnh tay";
         HandsFreeStatus.Text = "Rảnh tay đang tắt";
