@@ -33,6 +33,25 @@ public static class PrimaryWorkbookTableExpander
         return Math.Max(InitialLastRow, rows.DefaultIfEmpty(0).Max());
     }
 
+    public static void VerifyTableBoundary(ZipArchive zip, int lastRow)
+    {
+        var found = false;
+        foreach (var entry in zip.Entries.Where(e =>
+            e.FullName.StartsWith("xl/tables/", StringComparison.Ordinal) &&
+            e.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
+        {
+            XDocument table;
+            using (var stream = entry.Open())
+                table = XDocument.Load(stream);
+            if ((string?)table.Root?.Attribute("name") != "tbl_NhapXuat7") continue;
+            if (found || (string?)table.Root.Attribute("ref") != $"A4:L{lastRow}")
+                throw new InvalidDataException(
+                    "Vùng bảng Nhập Xuất không đồng nhất với các dòng và công thức; không ghi.");
+            found = true;
+        }
+        if (!found) throw new InvalidDataException("Thiếu bảng tbl_NhapXuat7, không thể ghi.");
+    }
+
     public static int RequiredLastRow(int currentLast, int lastUsedRow, int newLines)
     {
         if (currentLast < InitialLastRow || lastUsedRow < FirstRow - 1 ||
