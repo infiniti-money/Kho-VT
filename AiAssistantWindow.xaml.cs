@@ -9,7 +9,7 @@ namespace HisaWarehouse;
 
 public sealed record AiChatMessage(bool IsUser, string Text)
 {
-    public string RoleLabel => IsUser ? "Bạn" : "HISA AI";
+    public string RoleLabel => IsUser ? "Bạn" : "An";
 }
 
 public partial class AiAssistantWindow : Window
@@ -17,11 +17,15 @@ public partial class AiAssistantWindow : Window
     private readonly InventoryState _state;
     private readonly List<AiChatTurn> _history = [];
     private SpeechSynthesizer? _speaker;
+    private string _lastAssistantText = "";
     private bool _busy;
 
     public ObservableCollection<AiChatMessage> ChatMessages { get; } = [];
     // Open the existing human-reviewed replenishment form, never apply changes from AI.
     public Action? OpenReplenishment { get; set; }
+    public bool IsHandsFreeActive => _handsFreeEnabled;
+    public bool KeepListeningWhenMinimized => _handsFreeEnabled &&
+        BackgroundListeningCheck.IsChecked == true;
 
     public AiAssistantWindow(InventoryState state)
     {
@@ -29,9 +33,10 @@ public partial class AiAssistantWindow : Window
         _state = state;
         DataContext = this;
         ChatMessages.Add(new AiChatMessage(false,
-            "Chào bạn! Mình có thể lập báo cáo nhập, xuất và tồn kho theo 7 hoặc 30 ngày, " +
-            "cảnh báo vật tư sắp hết và giải thích số liệu. Báo cáo tại máy không cần Internet; " +
-            "để trò chuyện với Gemini hãy lưu khóa API và nhấn Gửi."));
+            "Chào bạn, mình là An, trợ lý kho vật tư HISA. " +
+            "An có thể đọc báo cáo, kiểm tra tình trạng hàng, lập đề xuất nhập kho để bạn duyệt " +
+            "và trò chuyện bằng giọng nói tiếng Việt qua Gemini. " +
+            "Để dùng micro, hãy lưu khóa API rồi nhấn Mic hoặc Bật rảnh tay."));
         var metrics = AiInventoryReport.Metrics(state);
         LowStockCount.Text = metrics.LowStock.ToString("N0", CultureInfo.GetCultureInfo("vi-VN"));
         OutOfStockCount.Text = metrics.OutOfStock.ToString("N0", CultureInfo.GetCultureInfo("vi-VN"));
@@ -85,9 +90,9 @@ public partial class AiAssistantWindow : Window
     {
         try
         {
-            ChatMessages.Add(new AiChatMessage(false,
-                "BÁO CÁO TÍNH TẠI MÁY (không gửi lên mạng):\n" +
-                AiInventoryReport.Build(_state, DateOnly.FromDateTime(DateTime.Today))));
+            _lastAssistantText = "BÁO CÁO TÍNH TẠI MÁY (không gửi lên mạng):\n" +
+                AiInventoryReport.Build(_state, DateOnly.FromDateTime(DateTime.Today));
+            ChatMessages.Add(new AiChatMessage(false, _lastAssistantText));
             ActivityStatus.Text = "Đã lập báo cáo từ dữ liệu HISA đang lưu trên máy; chưa xác minh đồng bộ Excel.";
             ScrollToBottom();
         }
@@ -140,6 +145,7 @@ public partial class AiAssistantWindow : Window
             _history.Add(new AiChatTurn("user", question));
             _history.Add(new AiChatTurn("model", answer));
             ChatMessages.Add(new AiChatMessage(false, answer));
+            _lastAssistantText = answer;
             ActivityStatus.Text = ShareDataCheck.IsChecked == true
                 ? "Đã nhận trả lời; số liệu gửi tới Gemini là thống kê rút gọn."
                 : "Đã nhận trả lời; không gửi thống kê kho.";
@@ -174,22 +180,39 @@ public partial class AiAssistantWindow : Window
         {
             _speaker ??= new SpeechSynthesizer();
             _speaker.SpeakAsyncCancelAll();
-            // Prefer an installed Vietnamese voice; otherwise a female voice.
-            // The exact voice depends entirely on Windows speech packs.
-            var voices = _speaker.GetInstalledVoices().Where(v => v.Enabled).ToList();
-            var choice = voices.FirstOrDefault(v => v.VoiceInfo.Culture.TwoLetterISOLanguageName == "vi" &&
-                v.VoiceInfo.Gender == VoiceGender.Female)
-                ?? voices.FirstOrDefault(v => v.VoiceInfo.Culture.TwoLetterISOLanguageName == "vi")
-                ?? voices.FirstOrDefault(v => v.VoiceInfo.Gender == VoiceGender.Female);
-            if (choice is not null) _speaker.SelectVoice(choice.VoiceInfo.Name);
+            AnVoiceSelector.Configure(_speaker);
             _speaker.SetOutputToDefaultAudioDevice();
             _speaker.SpeakAsync(text.Length > 4000 ? text[..4000] : text);
         }
         catch (Exception ex)
         {
-            ActivityStatus.Text = "Không thể đọc bằng âm thanh: " + ex.Message +
-                " (kiểm tra giọng nói được cài đặt trên Windows).";
+            ActivityStatus.Text = "An chưa đọc được tiếng Việt: " + ex.Message;
         }
+    }
+
+    private void ReadAloud_Click(object sender, RoutedEventArgs e)
+    {
+        var value = !string.IsNullOrWhiteSpace(_lastAssistantText) ? _lastAssistantText :
+            ChatMessages.LastOrDefault(message => !message.IsUser)?.Text;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            ActivityStatus.Text = "An chưa có nội dung để đọc.";
+            return;
+        }
+        Speak(value);
+        ActivityStatus.Text = "An đang đọc nội dung bằng giọng nữ tiếng Việt trên Windows.";
+    }
+
+    private void CreateReplenishment_Click(object sender, RoutedEventArgs e)
+    {
+        if (_handsFreeEnabled) StopHandsFree("An sẽ dừng nghe trước khi mở phiếu duyệt.");
+        if (_busy)
+        {
+            ActivityStatus.Text = "Đang có yêu cầu Gemini. Hãy đợi An hoàn tất trước khi mở phiếu.";
+            return;
+        }
+        if (!TryCloseAssistant()) return;
+        OpenReplenishment?.Invoke();
     }
 
     private void Microphone_Click(object sender, RoutedEventArgs e)
