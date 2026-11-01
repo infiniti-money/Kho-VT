@@ -45,11 +45,15 @@ try
         sheet.Cell("B6").Value = "Dây điện";
         sheet.Cell("C6").Value = "Mét";
         sheet.Cell("L6").Value = 10;
+        sheet.Cell("A7").Value = "VT005";
+        sheet.Cell("B7").Value = "Dây đồng";
+        sheet.Cell("C7").Value = "Kg";
+        sheet.Cell("L7").Value = "-3.5"; // text, decimal dot and negative
         book.SaveAs(path);
     }
     var before = SHA256.HashData(File.ReadAllBytes(path));
     var rows = BravoStockReader.Read(path);
-    Verify(rows.Count == 4, "reads material codes from column A, including zero");
+    Verify(rows.Count == 5, "reads material codes from column A, including zero");
     Verify(rows["VT001"].Name == "Bu lông" && rows["vt001"].Unit == "Bộ",
         "takes name from B, unit from C, case insensitive SKU");
     Verify(Math.Abs(rows["VT001"].Quantity - (-5)) < 0.000001,
@@ -57,6 +61,7 @@ try
     Verify(rows["VT002"].Quantity == 0, "zero on-hand stock remains valid");
     Verify(rows["VT003"].Quantity == -2.5, "parses negative decimal-comma text in L");
     Verify(rows["VT004"].Quantity == 10, "never confuses another quantity column with L");
+    Verify(rows["VT005"].Quantity == -3.5, "parses negative decimal-dot text in L");
     Verify(before.SequenceEqual(SHA256.HashData(File.ReadAllBytes(path))),
         "comparing Bravo does not change source workbook");
 
