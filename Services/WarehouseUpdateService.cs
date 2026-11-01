@@ -160,9 +160,9 @@ public static class WarehouseUpdateService
         var updaterSource = Path.Combine(installFolder, "HISA.Updater.exe");
         if (!File.Exists(updaterSource))
             throw new FileNotFoundException("Bản HISA đang dùng chưa có chương trình cập nhật ngoài.", updaterSource);
-        if (!IsInstallFolderWritable(installFolder))
-            throw new UnauthorizedAccessException(
-                "Thư mục cài đặt cần quyền quản trị. Hãy sử dụng cài đặt thủ công có xác nhận UAC.");
+        // A one-click update may need UAC when installed in Program Files.
+        // Windows, not HISA, owns the privilege prompt; never bypass UAC.
+        var requiresElevation = !IsInstallFolderWritable(installFolder);
 
         var folder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -172,8 +172,9 @@ public static class WarehouseUpdateService
         File.Copy(updaterSource, updater, false);
         var info = new ProcessStartInfo(updater)
         {
-            UseShellExecute = false,
-            CreateNoWindow = true,
+            UseShellExecute = requiresElevation,
+            Verb = requiresElevation ? "runas" : "",
+            CreateNoWindow = !requiresElevation,
             WorkingDirectory = folder
         };
         info.ArgumentList.Add("--parent-pid");
