@@ -156,6 +156,7 @@
                                      TextWrapping="Wrap" Padding="11" Background="#F8FBFF" BorderBrush="#DDE7F2" BorderThickness="1"
                                      FontSize="12" ToolTip="Nhập câu hỏi về kho vật tư"/>
                             <Button x:Name="MicButton" Grid.Column="1" Content="🎙 Mic" Style="{StaticResource AiSecondary}"
+                                    ToolTip="Nhấn để nhận dạng tiếng Việt qua Gemini, tự dừng sau 1,2 giây im lặng. Cần khóa API và Internet."
                                     Click="Microphone_Click" Margin="8,0,0,0" VerticalAlignment="Bottom"/>
                             <Button Grid.Column="2" Content="■ Dừng đọc" Style="{StaticResource AiSecondary}"
                                     Click="StopSpeaking_Click" Margin="7,0,0,0" VerticalAlignment="Bottom"/>
