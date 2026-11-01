@@ -19,6 +19,18 @@ public partial class AiAssistantWindow
     private SpeechSynthesizer? _handsFreeSpeaker;
     private CancellationTokenSource? _speechPlaybackCts;
 
+    /// <summary>
+    /// Dashboard one-click entry opens An and immediately asks the SAME explicit
+    /// microphone/cloud processing consent as the ordinary rảnh tay button.
+    /// It never records before permission is granted.
+    /// </summary>
+    public void BeginHandsFreeFromHome() =>
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!_sessionClosed && !_handsFreeEnabled)
+                HandsFree_Click(this, new RoutedEventArgs());
+        }), DispatcherPriority.ContextIdle);
+
     private bool IsLive(int generation, CancellationToken token) =>
         _handsFreeEnabled && !_sessionClosed && generation == _handsFreeGeneration &&
         !token.IsCancellationRequested;
