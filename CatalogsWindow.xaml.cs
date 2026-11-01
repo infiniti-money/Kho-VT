@@ -1,15 +1,25 @@
+using HisaWarehouse.Services;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace HisaWarehouse;
 
-public partial class CatalogsWindow : Window
+public partial class CatalogsWindow : Window, IWorkspaceDirtyPage
 {
     private readonly InventoryState _state;
     private readonly Dictionary<string, ObservableCollection<string>> _values;
     private readonly Dictionary<string, ListBox> _lists;
     private readonly Dictionary<string, TextBox> _inputs;
+    private readonly WorkspaceFormSnapshot _navigationSnapshot;
+
+    public bool HasUnsavedChanges => _navigationSnapshot.HasChanges;
+
+    private string CaptureForm() => WorkspaceFormSnapshot.Serialize(
+        _values.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new { Key = kv.Key, Values = kv.Value.ToArray() }).ToArray(),
+        _inputs.OrderBy(kv => kv.Key, StringComparer.Ordinal)
+            .Select(kv => new { Key = kv.Key, Text = kv.Value.Text }).ToArray());
 
     public List<string> Warehouses => _values["warehouses"].ToList();
     public List<string> Categories => _values["categories"].ToList();
@@ -32,6 +42,7 @@ public partial class CatalogsWindow : Window
         _lists = new Dictionary<string, ListBox> { ["warehouses"] = WarehouseList, ["categories"] = CategoryList, ["units"] = UnitList, ["departments"] = DepartmentList, ["recipients"] = RecipientList };
         _inputs = new Dictionary<string, TextBox> { ["warehouses"] = WarehouseInput, ["categories"] = CategoryInput, ["units"] = UnitInput, ["departments"] = DepartmentInput, ["recipients"] = RecipientInput };
         foreach (var (key, list) in _lists) list.ItemsSource = _values[key];
+        _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
     }
 
     private void Add_Click(object sender, RoutedEventArgs e)
