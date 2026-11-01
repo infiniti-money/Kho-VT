@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Services/WorkspaceNavigationPolicy.cs" Link="WorkspaceNavigationPolicy.cs" />
+    <Compile Include="../../Services/WorkspaceFormSnapshot.cs" Link="WorkspaceFormSnapshot.cs" />
   </ItemGroup>
 </Project>
