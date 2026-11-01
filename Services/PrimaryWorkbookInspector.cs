@@ -108,7 +108,9 @@ public static class PrimaryWorkbookInspector
                 string.IsNullOrWhiteSpace(Text(Get(cells, col), strings)) &&
                 !HasFormula(Get(cells, col))))
                 vacant++;
-            foreach (var col in new[] { "E", "F", "H", "I", "J" })
+            // E/F may be lookup formulas or ordinary name/unit input cells.
+            // Only H/I/J must always contain original protected formulas.
+            foreach (var col in new[] { "H", "I", "J" })
                 if (!HasFormula(Get(cells, col))) missing++;
         }
 
