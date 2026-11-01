@@ -102,7 +102,7 @@ var reports = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "Deta
 if (reports.Descendants().Count(el => Name(el) == "SkuFilterBox") != 1)
     throw new InvalidOperationException("Detailed reports have no multi-SKU input.");
 
-var codes = HisaWarehouse.Services.MaterialCodeFilter.Parse(" vt001,VT002 VT003,,  vt001\\tVT004\\nVT005 ");
+var codes = HisaWarehouse.Services.MaterialCodeFilter.Parse(" vt001,VT002 VT003,,  vt001\tVT004\nVT005 ");
 if (codes.Count != 5 || !codes.Contains("VT001") || !codes.Contains("vt005") ||
     !HisaWarehouse.Services.MaterialCodeFilter.Matches(codes, "vt002") ||
     HisaWarehouse.Services.MaterialCodeFilter.Matches(codes, "vt0021"))
