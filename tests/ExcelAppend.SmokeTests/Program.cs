@@ -29,7 +29,7 @@ XElement Formula(string address, int row) =>
         new XElement(m + "v", row == 4 ? "12" : "2"));
 
 void BuildWorkbook(bool missingFormula = false, bool overwriteFormulaWithText = false,
-    string? sharedSkuValue = null)
+    string? sharedSkuValue = null, bool plainNameUnitColumns = false)
 {
     using var zip = ZipFile.Open(file, ZipArchiveMode.Create);
     void Add(string name, XDocument data)
@@ -95,7 +95,9 @@ void BuildWorkbook(bool missingFormula = false, bool overwriteFormulaWithText = 
         }
         foreach (string col in new[] { "E", "F", "H", "I", "J" })
         {
-            if (missingFormula && row == 7 && col == "I")
+            if (plainNameUnitColumns && col is "E" or "F")
+                cells.Add(Blank(col + row));
+            else if (missingFormula && row == 7 && col == "I")
                 cells.Add(Blank(col + row));
             else if (overwriteFormulaWithText && row == 7 && col == "I")
                 cells.Add(Str("I7", "Dữ liệu nhập nhầm"));
@@ -246,7 +248,13 @@ try
               "all transaction lines are committed");
         Check(Text(Cell(tx, "L7")).Contains("[HISA:PN-20261101-001]"),
               "document marker keeps Excel appends idempotent");
-        Check(Text(Cell(tx, "B7")) == "", "do not modify Excel print selector B");
+        Check(Text(Cell(tx, "B7")) == "PN-20261101-001" &&
+              Text(Cell(tx, "B8")) == "PN-20261101-001",
+              "write print-slip number in column B for both transaction lines");
+        Check(Cell(tx, "A7").Element(m + "v") is not null &&
+              Text(Cell(tx, "K7")) == "Nhân viên A" &&
+              Text(Cell(tx, "L7")).Contains("Kiểm tra"),
+              "write date A, partner K and note L alongside type C and quantity G");
         Check(Text(Cell(tx, "M7")) == "Ô trợ giúp, phải giữ", "preserve M:Q helpers on same sheet");
         Check(new[] { "E", "F", "H", "I", "J" }.All(col =>
               Cell(tx, col + "7").Element(m + "f") is not null &&
@@ -257,6 +265,28 @@ try
               workbook.GetEntry("xl/externalLinks/externalLink1.xml") is not null,
               "keep chart and external workbook links");
     }
+    // E/F may be real Excel lookup formulas (above) or plain input cells.
+    // The writer must put the validated catalog name/unit into plain E/F
+    // without touching mandatory H/I/J formulas.
+    var plainWorkbook = Path.Combine(scratch, "KHO-plain.xlsx");
+    File.Move(file, plainWorkbook);
+    BuildWorkbook(plainNameUnitColumns: true);
+    var plainHash = PrimaryWorkbookReconciler.Fingerprint(file);
+    PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-PLAIN",
+        moved, plainHash);
+    using (var plainZip = ZipFile.OpenRead(file))
+    {
+        var plainTx = Sheet(plainZip, "xl/worksheets/sheet2.xml");
+        Check(Text(Cell(plainTx, "E7")) == "Vật tư thử" &&
+              Text(Cell(plainTx, "F7")) == "Cái",
+              "fill E/F with name and unit when cells contain no lookup formulas");
+        Check(new[] { "H", "I", "J" }.All(col =>
+              Cell(plainTx, col + "7").Element(m + "f") is not null),
+              "preserve required H/I/J formulas with direct name/unit input");
+    }
+    File.Delete(file);
+    File.Move(plainWorkbook, file);
+
     var changedBytes = SHA256.HashData(File.ReadAllBytes(file));
     try
     {
@@ -380,6 +410,55 @@ try
               fixedCell.Element(m + "v") is null,
             "formula recovery removes stale inline-string metadata and cached value");
     }
+
+    // The on-save recovery is automatic ONLY when a compatible trusted HISA
+    // backup is present. It must refuse missing/overwritten formulas if no
+    // valid donor exists, without touching the damaged workbook.
+    var trustedAuto = Path.Combine(scratch, "KHO.xlsx.HISA-backup-verified.bak");
+    File.Copy(verifiedBackup, trustedAuto, overwrite: true);
+    File.Delete(file);
+    BuildWorkbook(overwriteFormulaWithText: true);
+    var damagedHash = PrimaryWorkbookReconciler.Fingerprint(file);
+    var automatic = AutomaticFormulaRecovery.EnsureProtectedFormulas(file, damagedHash);
+    Check(automatic.Recovered && automatic.RestoredCells == 1 &&
+          automatic.WorkbookHash != damagedHash,
+          "automatically restore overwritten I7 from verified matching HISA backup");
+    using (var recoveredAutomatically = ZipFile.OpenRead(file))
+        Check(Cell(Sheet(recoveredAutomatically, "xl/worksheets/sheet2.xml"),
+                  "I7").Element(m + "f") is not null,
+              "restored I7 is a valid formula instead of pasted text");
+    // Previous save/restore operations also created verified HISA backup
+    // files in this scratch directory. Clear *all* of them to exercise the
+    // genuine no-donor case, rather than accidentally selecting an old one.
+    foreach (var backupFile in Directory.GetFiles(scratch, "KHO.xlsx.HISA-*.bak"))
+        File.Delete(backupFile);
+    File.Delete(file);
+    BuildWorkbook(missingFormula: true);
+    var noDonorHash = PrimaryWorkbookReconciler.Fingerprint(file);
+    try
+    {
+        AutomaticFormulaRecovery.EnsureProtectedFormulas(file, noDonorHash);
+        throw new Exception("Missing formula automatically recovered without verified donor.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(PrimaryWorkbookReconciler.Fingerprint(file) == noDonorHash,
+            "refuse automatic repair without verified HISA backup; no file changes");
+    }
+    // Existing source changed outside HISA: even a valid donor cannot be used
+    // until explicitly resynchronized, preventing accidental overwrite.
+    File.Copy(verifiedBackup, trustedAuto, overwrite: true);
+    try
+    {
+        AutomaticFormulaRecovery.EnsureProtectedFormulas(file, new string('A', 64));
+        throw new Exception("Stale fingerprint accepted for automatic repair.");
+    }
+    catch (IOException)
+    {
+        Check(PrimaryWorkbookReconciler.Fingerprint(file) == noDonorHash,
+            "refuse to auto-restore if workbook fingerprint is stale");
+    }
+    File.Delete(trustedAuto);
 
     // Each workbook owns a different shared-string table: the numeric index
     // alone is NOT evidence that donor and live catalog SKUs match.

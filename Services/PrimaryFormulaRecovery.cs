@@ -165,7 +165,7 @@ public static class PrimaryFormulaRecovery
         {
             ("Danh mục", 4, 900, new[] { "F", "G", "I", "J", "K" }),
             ("Nhập Xuất", 5, PrimaryWorkbookTableExpander.LastRow(Load(target, SheetPart(target, "Nhập Xuất"))),
-                new[] { "E", "F", "H", "I", "J" })
+                new[] { "H", "I", "J" })
         })
         {
             var current = Cells(Load(target, SheetPart(target, sheet)));

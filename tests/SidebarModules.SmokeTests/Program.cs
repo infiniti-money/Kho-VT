@@ -172,4 +172,11 @@ var an = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "AiAssis
 if (!an.Contains("ShareDataCheck.IsChecked != true", StringComparison.Ordinal) ||
     !an.Contains("BravoStockComparison.Read(_state)", StringComparison.Ordinal))
     throw new InvalidOperationException("An must compare local files while requiring separate Gemini data-sharing consent.");
+var itemForm = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "ItemEditorWindow.xaml"));
+if ((string?)itemForm.Descendants().Single(el => Name(el) == "BarcodeBox").Attribute("IsReadOnly") != "True")
+    throw new InvalidOperationException("Barcode field must be locked.");
+var editSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "ItemEditorWindow.xaml.cs"));
+if (!editSource.Contains("SkuBox.IsReadOnly = true;", StringComparison.Ordinal) ||
+    !editSource.Contains("GenerateSkuButton.IsEnabled = false;", StringComparison.Ordinal))
+    throw new InvalidOperationException("Existing material SKU must be locked.");
 Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");
