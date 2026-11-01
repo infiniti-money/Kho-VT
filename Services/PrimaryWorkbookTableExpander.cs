@@ -149,7 +149,9 @@ public static class PrimaryWorkbookTableExpander
             }
             if ((string?)doc.Root?.Attribute("name") != "tbl_NhapXuat7") continue;
             var expected = $"A4:L{oldLastRow}";
-            if ((string?)doc.Root.Attribute("ref") != expected)
+            var extended = $"A4:L{targetLastRow}";
+            var observed = (string?)doc.Root.Attribute("ref");
+            if (observed != expected && observed != extended)
                 throw new InvalidDataException("Phạm vi tbl_NhapXuat7 không khớp với sheet. Dừng mở rộng.");
             doc.Root.SetAttributeValue("ref", $"A4:L{targetLastRow}");
             var filter = doc.Root.Element(M + "autoFilter");
