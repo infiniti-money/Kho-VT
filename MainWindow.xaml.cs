@@ -452,7 +452,7 @@ public partial class MainWindow : Window
             open();
         }
         if (mayHaveChanges)
-            ConfirmInApp("Trang hiện tại có thể có dữ liệu chưa lưu. Chuyển trang và bỏ các thay đổi chưa lưu?",
+            ConfirmInApp("Bạn đã thay đổi dữ liệu nhưng chưa lưu. Bỏ các thay đổi này để chuyển trang?",
                 accepted => { if (accepted) Switch(); }, "Chuyển trang", "Ở lại");
         else Switch();
     }
