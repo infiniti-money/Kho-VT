@@ -32,6 +32,18 @@ if (main.Descendants().Any(el => Name(el)?.StartsWith("NavGroup", StringComparis
 var dashboard = main.Descendants().Single(el => Name(el) == "DashboardPage");
 if (dashboard.Name.LocalName != "ScrollViewer")
     throw new InvalidOperationException("Dashboard should be scrollable on compact screens.");
+// Trend charts must be the first dashboard section immediately below the
+// dark heading; moving only their XAML keeps the existing WebView2 binding.
+var dashboardSections = dashboard.Elements().Single(el => el.Name.LocalName == "StackPanel")
+    .Elements().ToArray();
+if (dashboardSections.Length < 4 ||
+    dashboardSections[0].Name.LocalName != "Border" ||
+    dashboardSections[1].Name.LocalName != "TextBlock" ||
+    (string?)dashboardSections[1].Attribute("Text") != "Xu hướng nhập xuất và cơ cấu vật tư" ||
+    dashboardSections[2].Name.LocalName != "Border" ||
+    !dashboardSections[2].Descendants().Any(el => Name(el) == "ChartsWebView"))
+    throw new InvalidOperationException("Trends must appear directly after dashboard header, ahead of actions and KPIs.");
+
 var dashboardButtons = dashboard.Descendants().Where(el => el.Name.LocalName == "Button").ToList();
 var mainActions = new HashSet<string> {
     "NavInventory_Click", "NavMovement_Click", "NavPending_Click",
