@@ -6,6 +6,8 @@ namespace HisaWarehouse;
 
 public partial class AiAssistantWindow
 {
+    private HandsFreePcmRecorder? _microphoneProbe;
+    private CancellationTokenSource? _microphoneProbeCts;
     private bool _updatingMicrophoneList;
     private int _selectedMicrophone = -1;
 
@@ -31,6 +33,7 @@ public partial class AiAssistantWindow
 
     private void RefreshMicrophones_Click(object sender, RoutedEventArgs e)
     {
+        StopMicrophoneProbe();
         if (_handsFreeEnabled) StopHandsFree("Đã ngừng nghe khi làm mới danh sách micro.");
         StopManualMicrophone();
         LoadMicrophones(false);
@@ -43,6 +46,7 @@ public partial class AiAssistantWindow
     {
         if (_updatingMicrophoneList || InputMicrophoneBox?.SelectedItem is not MicrophoneDeviceOption selected)
             return;
+        StopMicrophoneProbe();
         if (_handsFreeEnabled) StopHandsFree("Đã dừng rảnh tay vì bạn đổi micro đầu vào. Hãy bật lại để đồng ý.");
         StopManualMicrophone();
         _selectedMicrophone = selected.DeviceNumber;
@@ -56,6 +60,76 @@ public partial class AiAssistantWindow
         {
             ActivityStatus.Text = "Đã chọn micro cho phiên này nhưng chưa lưu được tùy chọn: " + ex.Message;
         }
+    }
+
+    private async void TestMicrophone_Click(object sender, RoutedEventArgs e)
+    {
+        if (_microphoneProbeCts is not null)
+        {
+            StopMicrophoneProbe();
+            ActivityStatus.Text = "Đã dừng thử micro. Không gửi âm thanh lên mạng.";
+            return;
+        }
+        if (_handsFreeEnabled || _manualMicCts is not null || _busy)
+        {
+            ActivityStatus.Text = "Hãy dừng chế độ Mic hoặc rảnh tay trước khi thử thiết bị đầu vào.";
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        var recorder = new HandsFreePcmRecorder(_selectedMicrophone);
+        _microphoneProbeCts = cts;
+        _microphoneProbe = recorder;
+        recorder.InputLevelChanged += level =>
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!cts.IsCancellationRequested && ReferenceEquals(_microphoneProbe, recorder))
+                    MicrophoneLevelBar.Value = level;
+            }));
+        recorder.CaptureStopped += error =>
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ReferenceEquals(_microphoneProbe, recorder))
+                {
+                    StopMicrophoneProbe();
+                    if (error is not null)
+                        ActivityStatus.Text = "Thiết bị micro gặp lỗi: " + error.Message;
+                }
+            }));
+        try
+        {
+            recorder.Start();
+            MicrophoneTestButton.Content = "■ Dừng thử";
+            ActivityStatus.Text = "Đang thử micro trong 8 giây: " +
+                (InputMicrophoneBox.SelectedItem as MicrophoneDeviceOption)?.Label +
+                ". Nếu thanh tín hiệu không di chuyển, hãy chọn thiết bị khác hoặc kiểm tra Windows Sound.";
+            await Task.Delay(TimeSpan.FromSeconds(8), cts.Token);
+            if (ReferenceEquals(_microphoneProbe, recorder))
+                ActivityStatus.Text = "Thử micro hoàn tất. Không gửi âm thanh lên Internet.";
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (!_sessionClosed) ActivityStatus.Text = "Không thử được micro: " + ex.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_microphoneProbe, recorder))
+                StopMicrophoneProbe();
+        }
+    }
+
+    private void StopMicrophoneProbe()
+    {
+        var source = _microphoneProbe;
+        _microphoneProbe = null;
+        var cts = _microphoneProbeCts;
+        _microphoneProbeCts = null;
+        cts?.Cancel();
+        source?.Dispose();
+        MicrophoneLevelBar.Value = 0;
+        MicrophoneTestButton.Content = "Thử mic";
+        // The async test owns and disposes its CTS after the awaited delay.
     }
 
     private void DisplayMicrophoneLevel(int level, bool validSession)
