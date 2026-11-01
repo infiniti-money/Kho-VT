@@ -267,6 +267,18 @@ public partial class AiAssistantWindow : Window
 
     private bool TryHandleAnCommand(string question)
     {
+        var stockAnswer = AiInventoryReport.TryAnswerStockBySku(_state, question);
+        if (stockAnswer is not null &&
+            !AnCatalogEditService.TryParseCommand(question, out _))
+        {
+            ChatMessages.Add(new AiChatMessage(true, question));
+            ChatMessages.Add(new AiChatMessage(false, stockAnswer));
+            _lastAssistantText = stockAnswer;
+            QuestionInput.Clear();
+            ScrollToBottom();
+            ActivityStatus.Text = "An đã đối chiếu mã hàng với dữ liệu đang lưu trong HISA.";
+            return true;
+        }
         if (AnCatalogEditService.TryParseCommand(question, out var edit) && edit is not null)
         {
             ChatMessages.Add(new AiChatMessage(true, question));
