@@ -1,59 +1,84 @@
 using System.Xml.Linq;
-using HisaWarehouse.Services;
 
-var file = Path.Combine(Directory.GetCurrentDirectory(), "MainWindow.xaml");
-var document = XDocument.Load(file);
+var mainFile = Path.Combine(Directory.GetCurrentDirectory(), "MainWindow.xaml");
+var chatFile = Path.Combine(Directory.GetCurrentDirectory(), "AiAssistantWindow.xaml");
+var main = XDocument.Load(mainFile);
+var chat = XDocument.Load(chatFile);
 XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-var buttons = document.Descendants().Where(el => el.Name.LocalName == "Button").ToList();
-var groups = document.Descendants().Where(el => el.Name.LocalName == "Expander")
-    .Where(el => ((string?)el.Attribute(x + "Name"))?.StartsWith("NavGroup", StringComparison.Ordinal) == true)
-    .ToList();
-if (groups.Count != 5) throw new InvalidOperationException($"Expected 5 groups, actual {groups.Count}.");
-
-foreach (var (nav, group) in SidebarModuleGroups.Membership)
-{
-    var matches = buttons.Where(btn => (string?)btn.Attribute(x + "Name") == nav).ToList();
-    if (matches.Count != 1)
-        throw new InvalidOperationException($"Navigation '{nav}' occurs {matches.Count} times.");
-    var ancestor = matches[0].Ancestors().FirstOrDefault(el => el.Name.LocalName == "Expander");
-    if ((string?)ancestor?.Attribute(x + "Name") != group)
-        throw new InvalidOperationException($"Navigation '{nav}' is in the wrong group.");
-}
-var hidden = new HashSet<string>(StringComparer.Ordinal) {
-    "NavQuickSearch", "NavNegativeStock", "NavLabels", "NavCatalogs", "NavAudit", "NavSoftwareInfo"
+string? Name(XElement e) => (string?)e.Attribute(x + "Name");
+var required = new[] {
+    "NavDashboard", "NavInventory", "NavQuickSearch", "NavMovement",
+    "NavPending", "NavRequests", "NavReplenishment", "NavNegativeStock",
+    "NavReports", "NavAudit", "NavLabels", "NavPrintTemplates",
+    "NavCatalogs", "NavSettings", "NavSoftwareInfo", "NavAi"
 };
-foreach (var nav in hidden)
+var sidebar = main.Descendants().Where(el => el.Name.LocalName == "Button")
+    .Where(el => Name(el)?.StartsWith("Nav", StringComparison.Ordinal) == true).ToList();
+if (sidebar.Count != required.Length ||
+    !sidebar.Select(Name).ToHashSet().SetEquals(required))
+    throw new InvalidOperationException("Flat sidebar must show all 16 top-level functions exactly once.");
+
+foreach (var button in sidebar)
 {
-    var button = buttons.Single(item => (string?)item.Attribute(x + "Name") == nav);
-    if ((string?)button.Attribute("Visibility") != "Collapsed")
-        throw new InvalidOperationException($"Duplicate menu '{nav}' is still visible.");
-}
-foreach (var nav in SidebarModuleGroups.Membership.Keys.Except(hidden))
-{
-    var button = buttons.Single(item => (string?)item.Attribute(x + "Name") == nav);
+    if (button.Ancestors().Any(el => el.Name.LocalName == "Expander"))
+        throw new InvalidOperationException("Flat menu item has a nested Expander: " + Name(button));
     if ((string?)button.Attribute("Visibility") == "Collapsed")
-        throw new InvalidOperationException($"Main menu '{nav}' disappeared.");
+        throw new InvalidOperationException("Main function is hidden: " + Name(button));
+    if (string.IsNullOrWhiteSpace((string?)button.Attribute("Click")))
+        throw new InvalidOperationException("Flat menu item has no navigation action: " + Name(button));
 }
+if (main.Descendants().Any(el => Name(el)?.StartsWith("NavGroup", StringComparison.Ordinal) == true))
+    throw new InvalidOperationException("Obsolete grouped sidebar remains in layout.");
 
-var inventoryTabs = document.Descendants().Single(el => (string?)el.Attribute(x + "Name") == "InventoryWorkspaceTabs");
-var reportTabs = document.Descendants().Single(el => (string?)el.Attribute(x + "Name") == "AuditReportTabs");
-if (inventoryTabs.Elements().Count(el => el.Name.LocalName == "TabItem") != 2 ||
-    reportTabs.Elements().Count(el => el.Name.LocalName == "TabItem") != 2)
-    throw new InvalidOperationException("Unified inventory/report tab layout not found.");
-var dashboard = buttons.Single(btn => (string?)btn.Attribute(x + "Name") == "NavDashboard");
-if (dashboard.Ancestors().Any(el => el.Name.LocalName == "Expander"))
-    throw new InvalidOperationException("Dashboard shortcut should stay outside all groups.");
+var dashboard = main.Descendants().Single(el => Name(el) == "DashboardPage");
+if (dashboard.Name.LocalName != "ScrollViewer")
+    throw new InvalidOperationException("Dashboard should be scrollable on compact screens.");
+var dashboardButtons = dashboard.Descendants().Where(el => el.Name.LocalName == "Button").ToList();
+var mainActions = new HashSet<string> {
+    "NavInventory_Click", "NavMovement_Click", "NavQuickSearch_Click",
+    "NavPending_Click", "NavRequests_Click", "NavReplenishment_Click",
+    "NavNegativeStock_Click", "NavReports_Click", "NavAudit_Click",
+    "NavLabels_Click", "NavPrintTemplates_Click", "NavSettings_Click"
+};
+foreach (var action in mainActions)
+    if (!dashboardButtons.Any(el => (string?)el.Attribute("Click") == action))
+        throw new InvalidOperationException("Dashboard is missing direct function shortcut: " + action);
 
-if (SidebarModuleGroups.ModuleFor("NavDashboard") is not null ||
-    SidebarModuleGroups.ModuleFor("Unknown") is not null)
-    throw new InvalidOperationException("Unknown/root navigation cannot be assigned to a group.");
+var updater = dashboardButtons.Single(el => Name(el) == "CheckUpdateButton");
+if ((string?)updater.Attribute("Click") != "CheckUpdate_Click")
+    throw new InvalidOperationException("Homepage update does not invoke secure SHA-256 update workflow.");
+if (main.Descendants().Count(el => Name(el) == "CheckUpdateButton") != 1)
+    throw new InvalidOperationException("Updater button must not be duplicated in settings.");
+if (!dashboard.Descendants().Any(el => Name(el) == "UpdateStatusText"))
+    throw new InvalidOperationException("Homepage must show update progress and errors.");
+if (!dashboardButtons.Any(el => (string?)el.Attribute("Click") == "HomeHandsFree_Click"))
+    throw new InvalidOperationException("Homepage has no hands-free assistant shortcut.");
+if (!dashboardButtons.Any(el => (string?)el.Attribute("Click") == "NavAi_Click"))
+    throw new InvalidOperationException("Homepage has no normal chat shortcut.");
+foreach (var id in new[] { "DashboardDateText", "KpiProductCount", "KpiLowStock",
+    "KpiOutOfStock", "KpiOutOfStockCaption", "KpiToday", "KpiTodayCaption",
+    "ChartsWebView", "LowStockGrid", "DataQualitySummary", "DataQualityDetail" })
+    if (main.Descendants().Count(el => Name(el) == id) != 1)
+        throw new InvalidOperationException("Existing dashboard binding missing or duplicated: " + id);
 
-var expected = new HashSet<string>(SidebarModuleGroups.Membership.Keys, StringComparer.Ordinal)
-    { "NavDashboard" };
-var actual = buttons.Select(el => (string?)el.Attribute(x + "Name"))
-    .Where(name => name?.StartsWith("Nav", StringComparison.Ordinal) == true).ToHashSet();
-if (!actual.SetEquals(expected))
-    throw new InvalidOperationException("A navigation item was lost or duplicated in the grouping.");
-if (groups.Count(g => (string?)g.Attribute("IsExpanded") == "True") != 1)
-    throw new InvalidOperationException("Exactly one module must be expanded on first launch.");
-Console.WriteLine($"PASS: grouped navigation hides 6 duplicate pages and combines inventory/reports into tabs.");
+if (chat.Descendants().Any(el => el.Name.LocalName == "Button" &&
+    ((string?)el.Attribute("Content") == "Đóng trang" ||
+    (string?)el.Attribute("Click") == "Close_Click")))
+    throw new InvalidOperationException("An chat should not show a redundant Close page button.");
+foreach (var id in new[] { "HandsFreeButton", "InputMicrophoneBox", "MicrophoneTestButton" })
+    if (chat.Descendants().Count(el => Name(el) == id) != 1)
+        throw new InvalidOperationException("An microphone controls missing: " + id);
+
+var cs = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "MainWindow.xaml.cs"));
+if (!cs.Contains("assistant.BeginHandsFreeFromHome()", StringComparison.Ordinal) ||
+    !cs.Contains("private void HomeHandsFree_Click", StringComparison.Ordinal))
+    throw new InvalidOperationException("Homepage cannot invoke consented An hands-free.");
+var handsFree = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "AiAssistantWindow.HandsFree.cs"));
+if (!handsFree.Contains("HandsFree_Click(this, new RoutedEventArgs())", StringComparison.Ordinal))
+    throw new InvalidOperationException("Homepage hands-free bypasses the microphone consent workflow.");
+if (cs.Contains("NavGroup_Expanded", StringComparison.Ordinal) ||
+    cs.Contains("SidebarModuleGroups.ModuleFor", StringComparison.Ordinal))
+    throw new InvalidOperationException("Obsolete accordion menu behavior remains.");
+
+Console.WriteLine("PASS: 16 flat navigations, 12 homepage actions, secure updater, consented An hands-free and all KPI bindings.");
