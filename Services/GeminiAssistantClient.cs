@@ -14,7 +14,7 @@ public static class GeminiAssistantClient
         Timeout = TimeSpan.FromSeconds(55)
     };
 
-    private const string Model = "gemini-2.5-flash";
+    private const string Model = "gemini-3.5-flash-lite";
     private const string TranscriptionModel = "gemini-3.5-transcribe";
     private const string SystemPrompt = """
         Bạn là An, trợ lý AI nữ quản lý kho vật tư HISA. Xưng "An" và trả lời bằng tiếng Việt chuẩn miền Bắc, tự nhiên, nhẹ nhàng, rõ ràng, chính xác và súc tích.
@@ -27,102 +27,96 @@ public static class GeminiAssistantClient
         """;
 
     /// <summary>
-    /// Convert one explicitly approved PCM WAV clip to Vietnamese text.
-    /// Prefer the specialized Gemini speech-to-text model with vi-VN hint.
-    /// Fall back to the existing Flash audio understanding model if this API
-    /// key cannot access the new transcription model. No audio is written to disk.
+    /// Offline-testable Interactions request, per Google's Gemini 3.5 Transcribe API.
+    /// Audio remains in RAM and is sent only after per-session microphone consent.
     /// </summary>
-    public static async Task<string> TranscribeVietnameseAsync(
-        string apiKey, byte[] wav, CancellationToken cancellationToken = default)
+    public static object BuildTranscriptionRequest(byte[] wav)
     {
         if (wav.Length < 44 || wav.Length > PcmVoiceActivityDetector.MaximumBytes + 44 ||
             System.Text.Encoding.ASCII.GetString(wav, 0, 4) != "RIFF" ||
             System.Text.Encoding.ASCII.GetString(wav, 8, 4) != "WAVE")
             throw new ArgumentException("Âm thanh WAV không hợp lệ hoặc dài hơn 25 giây.");
-
-        var base64 = Convert.ToBase64String(wav);
-        using (var request = new HttpRequestMessage(HttpMethod.Post,
-            $"https://generativelanguage.googleapis.com/v1beta/models/{TranscriptionModel}:generateContent"))
+        return new
         {
-            request.Headers.Add("x-goog-api-key", apiKey);
-            request.Content = JsonContent.Create(new
+            model = TranscriptionModel,
+            input = new[] { new { type = "audio", data = Convert.ToBase64String(wav), mime_type = "audio/wav" } },
+            generation_config = new
             {
-                contents = new[] { new { role = "user", parts = new[] {
-                    new { inlineData = new { mimeType = "audio/wav", data = base64 } }
-                } } },
-                generationConfig = new
+                transcription_config = new
                 {
-                    audioTranscriptionConfig = new
-                    {
-                        languageCodes = new[] { "vi-VN" },
-                        customVocabulary = new[] { "HISA", "nhập kho", "xuất kho",
-                            "tồn kho", "vật tư", "mã vật tư", "phiếu nhập", "phiếu xuất" }
-                    }
+                    language_codes = new[] { "vi-VN" },
+                    custom_vocabulary = new[] { "HISA", "Kho VT", "mã SKU", "vật tư", "Hưng Yên" }
                 }
-            });
-
-            using var response = await Client.SendAsync(request,
-                HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (response.IsSuccessStatusCode)
-                return await ReadTranscriptAsync(response, cancellationToken);
-
-            // Some existing keys or tiers cannot use the dedicated model.
-            // The older Flash transcription remains a supported fallback.
-            // Never retry on quota failures, to avoid hidden repeated charges.
-            if (response.StatusCode is not (HttpStatusCode.BadRequest or HttpStatusCode.Forbidden or HttpStatusCode.NotFound))
-                throw new HttpRequestException($"Gemini nhận dạng HTTP {(int)response.StatusCode}. " +
-                    "Hãy kiểm tra mạng, API key và hạn mức dịch vụ.");
-        }
-
-        using var fallback = new HttpRequestMessage(HttpMethod.Post,
-            $"https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent");
-        fallback.Headers.Add("x-goog-api-key", apiKey);
-        fallback.Content = JsonContent.Create(new
-        {
-            contents = new[] { new
-            {
-                role = "user",
-                parts = new object[]
-                {
-                    new { text = "Đây là giọng nói tiếng Việt (vi-VN). " +
-                        "Hãy chép LỜI NÓI nguyên văn bằng chữ tiếng Việt có dấu. " +
-                        "Không dịch sang tiếng Anh, không diễn giải, không trả lời câu hỏi. " +
-                        "Chỉ xuất nội dung nghe được. Nếu im lặng, không xuất văn bản." },
-                    new { inlineData = new { mimeType = "audio/wav", data = base64 } }
-                }
-            } },
-            generationConfig = new { temperature = 0.0, maxOutputTokens = 512 }
-        });
-        using var oldResponse = await Client.SendAsync(fallback,
-            HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (!oldResponse.IsSuccessStatusCode)
-            throw new HttpRequestException($"Gemini nhận dạng HTTP {(int)oldResponse.StatusCode}. " +
-                "Kiểm tra khóa API, kết nối Internet và hạn mức.");
-        return await ReadTranscriptAsync(oldResponse, cancellationToken);
+            }
+        };
     }
 
-    private static async Task<string> ReadTranscriptAsync(HttpResponseMessage response, CancellationToken token)
+    public static async Task<string> TranscribeVietnameseAsync(
+        string apiKey, byte[] wav, CancellationToken cancellationToken = default)
     {
-        await using var stream = await response.Content.ReadAsStreamAsync(token);
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            "https://generativelanguage.googleapis.com/v1beta/interactions");
+        request.Headers.Add("x-goog-api-key", apiKey);
+        request.Content = JsonContent.Create(BuildTranscriptionRequest(wav));
+        using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw ApiFailure(response.StatusCode, "nhận dạng tiếng Việt");
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var json = await JsonDocument.ParseAsync(stream,
-            new JsonDocumentOptions { MaxDepth = 32 }, token);
+            new JsonDocumentOptions { MaxDepth = 40 }, cancellationToken);
         return ExtractTranscript(json.RootElement);
     }
 
-    // JSON parsing separated from the network path for offline smoke tests.
+    /// <summary>Interactions text is in output_text or model_output steps, not candidates.</summary>
     public static string ExtractTranscript(JsonElement root)
     {
-        if (!root.TryGetProperty("candidates", out var candidates) ||
-            candidates.ValueKind != JsonValueKind.Array || candidates.GetArrayLength() == 0)
+        if (root.TryGetProperty("output_text", out var value) && value.ValueKind == JsonValueKind.String)
+            return (value.GetString() ?? "").Trim().Trim('"', '“', '”').Trim();
+        if (!root.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array)
             return "";
-        var candidate = candidates[0];
-        if (!candidate.TryGetProperty("content", out var content) ||
-            !content.TryGetProperty("parts", out var parts) ||
-            parts.ValueKind != JsonValueKind.Array) return "";
-        return string.Join(" ", parts.EnumerateArray()
-                .Where(p => p.TryGetProperty("text", out var value) && value.ValueKind == JsonValueKind.String)
-                .Select(p => p.GetProperty("text").GetString()))
-            .Trim().Trim('"', '“', '”').Trim();
+        var lines = new List<string>();
+        foreach (var step in steps.EnumerateArray())
+        {
+            if (!step.TryGetProperty("type", out var type) || type.GetString() != "model_output" ||
+                !step.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var item in content.EnumerateArray())
+                if (item.TryGetProperty("type", out var kind) && kind.GetString() == "text" &&
+                    item.TryGetProperty("text", out var text) && text.ValueKind == JsonValueKind.String)
+                    lines.Add(text.GetString() ?? "");
+        }
+        return string.Join(" ", lines).Trim().Trim('"', '“', '”').Trim();
+    }
+
+    public static Exception ApiFailure(HttpStatusCode status, string operation)
+    {
+        var advice = (int)status switch
+        {
+            400 => "Cấu trúc yêu cầu không hợp lệ. Kiểm tra phiên bản ứng dụng/API.",
+            401 or 403 => "Khóa API không đúng, bị hạn chế hoặc thiếu quyền dùng mô hình.",
+            404 => "Mô hình không khả dụng cho khóa hoặc khu vực hiện tại.",
+            429 => "Hết hạn mức hoặc vượt tốc độ gọi Gemini. Thử lại sau.",
+            >= 500 => "Máy chủ Gemini tạm lỗi. Thử lại sau.",
+            _ => "Kiểm tra Internet, cấu hình khóa và quyền truy cập Gemini."
+        };
+        return new HttpRequestException($"Gemini {operation}: HTTP {(int)status}. {advice}",
+            null, status);
+    }
+
+    /// <summary>Checks access without sending warehouse content or microphone audio.</summary>
+    public static async Task<string> TestConnectionAsync(string apiKey,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (var model in new[] { Model, TranscriptionModel, "gemini-3.8-flash-lite-tts" })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get,
+                $"https://generativelanguage.googleapis.com/v1beta/models/{model}");
+            request.Headers.Add("x-goog-api-key", apiKey);
+            using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!response.IsSuccessStatusCode) throw ApiFailure(response.StatusCode, $"kiểm tra mô hình {model}");
+        }
+        return $"API key truy cập được các mô hình chat ({Model}), nhận dạng ({TranscriptionModel}) và giọng đọc (gemini-3.8-flash-lite-tts). " +
+            "Đây là kiểm tra quyền truy cập, chưa phải thử ghi âm thực tế.";
     }
 
     public static async Task<string> AskAsync(
@@ -158,7 +152,7 @@ public static class GeminiAssistantClient
         {
             systemInstruction = new { parts = new[] { new { text = SystemPrompt } } },
             contents,
-            generationConfig = new { temperature = 0.25, maxOutputTokens = 1600 }
+            generationConfig = new { maxOutputTokens = 1600 }
         });
 
         using var response = await Client.SendAsync(request,
@@ -166,8 +160,7 @@ public static class GeminiAssistantClient
         if (!response.IsSuccessStatusCode)
         {
             // Do not surface the provider error body, which can contain request fragments.
-            throw new HttpRequestException(
-                $"Gemini trả về HTTP {(int)response.StatusCode}. Kiểm tra khóa API, mạng và hạn mức.");
+            throw ApiFailure(response.StatusCode, "trả lời");
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
