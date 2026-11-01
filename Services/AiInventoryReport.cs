@@ -74,6 +74,46 @@ public static class AiInventoryReport
         return lines.ToString();
     }
 
+    /// <summary>
+    /// Exact SKU lookup is resolved from the current HISA state rather than a
+    /// 24-item truncated Gemini report. No network request and no stock replay.
+    /// </summary>
+    public static string? TryAnswerStockBySku(InventoryState state, string question)
+    {
+        if (string.IsNullOrWhiteSpace(question) ||
+            !(question.Contains("mã", StringComparison.OrdinalIgnoreCase) ||
+              question.Contains("SKU", StringComparison.OrdinalIgnoreCase)))
+            return null;
+        var match = System.Text.RegularExpressions.Regex.Match(question,
+            @"(?:mã|SKU)\s+(?:hàng\s+|vật\s+tư\s+)?(?<sku>[\p{L}\p{N}._-]{2,64})",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (!match.Success) return null;
+        var sku = match.Groups["sku"].Value.Trim().TrimEnd('.', '!', '?');
+        var product = state.Products.FirstOrDefault(p =>
+            p.Sku.Equals(sku, StringComparison.OrdinalIgnoreCase) && p.Active);
+        if (product is null)
+            return $"An chưa tìm thấy mã vật tư {sku} trong dữ liệu HISA đang lưu. " +
+                "Hãy đồng bộ Excel nếu mã mới được thêm ngoài ứng dụng.";
+        var warehouses = state.SelectedWarehouses.Where(state.Warehouses.Contains)
+            .Distinct(StringComparer.Ordinal).ToList();
+        if (warehouses.Count == 0)
+            return $"An đã tìm thấy {product.Sku} - {product.Name}, " +
+                "nhưng chưa có kho nào được chọn để kiểm tra tồn.";
+        var entries = warehouses.Select(wh =>
+            $"{wh}: {product.WarehouseStocks.GetValueOrDefault(wh).ToString("0.##", Vi)} {product.Unit}");
+        var stock = product.StockAt(warehouses);
+        var status = stock <= 0 ? "hết hoặc âm tồn" :
+            product.MinStockDefined && product.MinStock > 0 && stock < product.MinStock
+                ? "dưới mức tối thiểu" : "đủ tồn theo ngưỡng đã khai báo";
+        return $"An kiểm tra mã {product.Sku} - {product.Name}. " +
+            $"Tổng tồn ở các kho được chọn: {stock.ToString("0.##", Vi)} {product.Unit}; " +
+            $"tình trạng: {status}. " +
+            $"Tồn tối thiểu: {(product.MinStockDefined ? product.MinStock.ToString("0.##", Vi) : "chưa khai báo")} {product.Unit}. " +
+            $"Chi tiết: {string.Join("; ", entries)}. " +
+            "Nguồn là bộ nhớ HISA, có thể chưa đồng bộ thay đổi mới trong Excel.";
+    }
+
     public static (int OutOfStock, int LowStock, int MovementsMonth) Metrics(InventoryState state)
     {
         var selected = state.SelectedWarehouses.Where(state.Warehouses.Contains).ToArray();
