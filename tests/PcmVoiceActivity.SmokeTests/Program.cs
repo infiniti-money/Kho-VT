@@ -75,3 +75,37 @@ void Run()
     }
 }
 Run();
+
+// Test the actual default VAD used by the Windows microphone rather than just
+// a manually tuned threshold. A quiet USB microphone may emit PCM ~500 RMS.
+var defaultVad = new PcmVoiceActivityDetector();
+Push(defaultVad, 530, 2);
+Assert(true, defaultVad.HasSpeech, "default VAD detects low-volume speech");
+Push(defaultVad, 0, 24);
+Assert(true, defaultVad.IsComplete, "default VAD detects end of Vietnamese utterance");
+
+// Gemini response must remain Vietnamese and must ignore non-text response parts.
+using (var response = System.Text.Json.JsonDocument.Parse("""
+{
+  "candidates": [
+    { "content": { "role": "model", "parts": [
+      {"text": "Kiểm tra tồn kho Hưng Yên"},
+      {"inlineData": {"mimeType": "audio/wav", "data": "AA=="}},
+      {"text": "cho mã VT001."}
+    ] } }
+  ]
+}
+"""))
+{
+    var transcript = GeminiAssistantClient.ExtractTranscript(response.RootElement);
+    if (transcript != "Kiểm tra tồn kho Hưng Yên cho mã VT001.")
+        throw new Exception("FAIL transcript is not parsed as original Vietnamese text.");
+    Console.WriteLine("PASS Gemini speech transcript preserves Vietnamese diacritics");
+}
+using (var empty = System.Text.Json.JsonDocument.Parse("""{"candidates": []}"""))
+{
+    if (GeminiAssistantClient.ExtractTranscript(empty.RootElement) != "")
+        throw new Exception("FAIL empty Gemini response should not fabricate Vietnamese text.");
+    Console.WriteLine("PASS no invented speech when Gemini has no candidates");
+}
+
