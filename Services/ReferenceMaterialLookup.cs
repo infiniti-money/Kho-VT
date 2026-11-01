@@ -30,42 +30,9 @@ public static class ReferenceMaterialLookup
         return path;
     }
 
-    public static IReadOnlyDictionary<string, Material> Read(string path)
-    {
-        using var snapshot = ExcelReadSnapshot.Capture(path);
-        using var workbook = new XLWorkbook(snapshot);
-        foreach (var sheet in workbook.Worksheets)
-        {
-            var first = sheet.FirstRowUsed()?.RowNumber() ?? 0;
-            var last = sheet.LastRowUsed()?.RowNumber() ?? 0;
-            if (first == 0) continue;
-            for (var header = first; header <= Math.Min(last, first + 25); header++)
-            {
-                var count = sheet.Row(header).LastCellUsed()?.Address.ColumnNumber ?? 0;
-                var columns = Enumerable.Range(1, count)
-                    .Select(i => (name: sheet.Cell(header, i).GetString().Trim(), index: i)).ToList();
-                int Index(params string[] names) => columns.FirstOrDefault(c =>
-                    names.Any(n => n.Equals(c.name, StringComparison.OrdinalIgnoreCase))).index;
-                int skuCol = Index("Mã hàng", "Mã SKU", "SKU", "Mã vật tư", "Mã sản phẩm");
-                int nameCol = Index("Tên hàng", "Tên vật tư", "Tên sản phẩm");
-                int unitCol = Index("Đơn vị tính", "Đơn vị", "ĐVT");
-                if (skuCol == 0 || nameCol == 0) continue;
-                var results = new Dictionary<string, Material>(StringComparer.OrdinalIgnoreCase);
-                for (int row = header + 1; row <= last; row++)
-                {
-                    var sku = sheet.Cell(row, skuCol).GetString().Trim();
-                    var name = sheet.Cell(row, nameCol).GetString().Trim();
-                    if (string.IsNullOrWhiteSpace(sku) || string.IsNullOrWhiteSpace(name)) continue;
-                    var unit = unitCol > 0 ? sheet.Cell(row, unitCol).GetString().Trim() : "";
-                    if (results.TryGetValue(sku, out var previous) &&
-                        (!previous.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase) ||
-                         !previous.Unit.Equals(unit, StringComparison.OrdinalIgnoreCase)))
-                        throw new InvalidDataException($"Mã {sku} bị trùng với tên hoặc đơn vị khác nhau trong file đối chiếu.");
-                    results[sku] = new Material(sku, name, unit);
-                }
-                if (results.Count > 0) return results;
-            }
-        }
-        throw new InvalidDataException("Không tìm thấy mã hàng và tên vật tư trong file đối chiếu.");
-    }
+    public static IReadOnlyDictionary<string, Material> Read(string path) =>
+        BravoStockReader.Read(path).Values.ToDictionary(
+            row => row.Sku,
+            row => new Material(row.Sku, row.Name, row.Unit),
+            StringComparer.OrdinalIgnoreCase);
 }
