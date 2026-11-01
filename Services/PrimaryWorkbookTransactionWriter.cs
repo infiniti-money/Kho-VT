@@ -159,8 +159,14 @@ public static class PrimaryWorkbookTransactionWriter
                             if (Cell(catRow, col + targetRow)?.Element(M + "f") is null)
                                 throw new InvalidDataException($"Thiếu công thức {col}{targetRow} trong Danh mục.");
                         foreach (var col in new[] { "A", "B", "C", "D" })
+                        {
                             if (!IsBlank(catRow, col + targetRow, sharedStrings))
                                 throw new InvalidDataException($"Ô {col}{targetRow} của Danh mục không trống; không ghi đè.");
+                            // Excel may omit empty <c> elements even inside a fully
+                            // formatted range. Create only missing input cells,
+                            // in worksheet column order, never the formula cells.
+                            EnsureCatalogCell(catRow, col + targetRow);
+                        }
                         SetString(catRow, "A" + targetRow, newItem.Sku.Trim());
                         SetString(catRow, "B" + targetRow, newItem.Name.Trim());
                         SetString(catRow, "C" + targetRow, newItem.Unit.Trim());
@@ -314,6 +320,18 @@ public static class PrimaryWorkbookTransactionWriter
         var cell = Cell(row, address);
         return cell?.Element(M + "f") is null && string.IsNullOrWhiteSpace(CellText(cell, strings));
     }
+    private static void EnsureCatalogCell(XElement row, string address)
+    {
+        if (Cell(row, address) is not null) return;
+        var cell = new XElement(M + "c", new XAttribute("r", address));
+        var column = address[0];
+        var following = row.Elements(M + "c")
+            .FirstOrDefault(existing => ((string?)existing.Attribute("r")) is string at &&
+                at.Length > 0 && at[0] > column);
+        if (following is null) row.Add(cell);
+        else following.AddBeforeSelf(cell);
+    }
+
     private static void EnsureInputCell(XElement row, string address)
     {
         var cell = Cell(row, address);
