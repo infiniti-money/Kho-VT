@@ -7,10 +7,28 @@ using HisaWarehouse.Services;
 
 namespace HisaWarehouse;
 
-public partial class MovementWindow : Window
+public partial class MovementWindow : Window, IWorkspaceDirtyPage
 {
     private readonly InventoryState _state;
     private readonly ObservableCollection<MovementLine> _lines = [];
+    private readonly WorkspaceFormSnapshot _navigationSnapshot;
+
+    public bool HasUnsavedChanges
+    {
+        get
+        {
+            // Commit an actively edited quantity before deciding whether navigation discards it.
+            if (!LinesGrid.CommitEdit(DataGridEditingUnit.Cell, true) ||
+                !LinesGrid.CommitEdit(DataGridEditingUnit.Row, true)) return true;
+            return _navigationSnapshot.HasChanges;
+        }
+    }
+
+    private string CaptureForm() => WorkspaceFormSnapshot.Serialize(
+        SelectedType, DateBox.SelectedDate, WarehouseBox.SelectedItem, ToWarehouseBox.SelectedItem,
+        ReferenceBox.Text, PartnerBox.Text, OperatorBox.Text, NoteBox.Text,
+        PendingCheck.IsChecked, ScannerBox.Text, ProductBox.Text, QuantityBox.Text,
+        _lines.Select(line => new { line.Sku, line.Quantity }).ToArray());
     public MovementDraft? Draft { get; private set; }
 
     public MovementWindow(InventoryState state, string? initialSku = null, string? initialType = null, string? initialWarehouse = null)
@@ -38,6 +56,7 @@ public partial class MovementWindow : Window
             if (initialItem is not null) AddLine(initialItem, 1);
         }
         UpdateLineCount();
+        _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
     }
 
     private string SelectedType => (MovementTypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Nhập";
