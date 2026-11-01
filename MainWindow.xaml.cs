@@ -614,7 +614,8 @@ public partial class MainWindow : Window
     private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
     private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
-    private void NavAi_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenAiAssistant);
+    private void NavAi_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => OpenAiAssistant());
 
     private void HomeHandsFree_Click(object sender, RoutedEventArgs e) =>
         RequestRootNavigation(() => OpenAiAssistant(startHandsFree: true));
