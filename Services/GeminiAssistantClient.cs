@@ -107,16 +107,28 @@ public static class GeminiAssistantClient
     public static async Task<string> TestConnectionAsync(string apiKey,
         CancellationToken cancellationToken = default)
     {
-        foreach (var model in new[] { Model, TranscriptionModel, "gemini-3.8-flash-lite-tts" })
+        var models = new[]
         {
+            (Id: Model, Label: "Trò chuyện"),
+            (Id: TranscriptionModel, Label: "Nhận dạng tiếng Việt"),
+            (Id: "gemini-3.8-flash-lite-tts", Label: "Giọng nữ An")
+        };
+        var results = new List<string>();
+        for (var i = 0; i < models.Length; i++)
+        {
+            var model = models[i];
             using var request = new HttpRequestMessage(HttpMethod.Get,
-                $"https://generativelanguage.googleapis.com/v1beta/models/{model}");
+                $"https://generativelanguage.googleapis.com/v1beta/models/{model.Id}");
             request.Headers.Add("x-goog-api-key", apiKey);
-            using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (!response.IsSuccessStatusCode) throw ApiFailure(response.StatusCode, $"kiểm tra mô hình {model}");
+            using var response = await Client.SendAsync(request,
+                HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (i == 0 && !response.IsSuccessStatusCode)
+                throw ApiFailure(response.StatusCode, "kiểm tra trò chuyện");
+            results.Add($"{model.Label}: " + (response.IsSuccessStatusCode
+                ? "có quyền truy cập"
+                : $"HTTP {(int)response.StatusCode} (không khả dụng cho khóa này)"));
         }
-        return $"API key truy cập được các mô hình chat ({Model}), nhận dạng ({TranscriptionModel}) và giọng đọc (gemini-3.8-flash-lite-tts). " +
-            "Đây là kiểm tra quyền truy cập, chưa phải thử ghi âm thực tế.";
+        return string.Join("; ", results) + ". Chưa thử thu và gửi âm thanh thực tế.";
     }
 
     public static async Task<string> AskAsync(
