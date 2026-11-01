@@ -142,6 +142,7 @@ public partial class AiAssistantWindow
             _history.Add(new AiChatTurn("user", transcript));
             _history.Add(new AiChatTurn("model", reply));
             ChatMessages.Add(new AiChatMessage(false, reply));
+            _lastAssistantText = reply;
             ScrollToBottom();
 
             HandsFreeStatus.Text = "Đang đọc bằng loa; micro tạm dừng.";
@@ -161,7 +162,7 @@ public partial class AiAssistantWindow
             if (IsLive(generation, token))
             {
                 ChatMessages.Add(new AiChatMessage(false, "Lượt rảnh tay chưa thành công: " + ex.Message));
-                ActivityStatus.Text = "Không nhận dạng được hoặc Gemini/loa gặp lỗi. Kiểm tra mạng, quyền micro và loa.";
+                ActivityStatus.Text = "An chưa hoàn thành lượt nói: " + ex.Message;
             }
         }
         finally
@@ -197,12 +198,7 @@ public partial class AiAssistantWindow
         speaker.SpeakCompleted += handler;
         try
         {
-            var voices = speaker.GetInstalledVoices().Where(v => v.Enabled).ToList();
-            var preferred = voices.FirstOrDefault(v => v.VoiceInfo.Culture.TwoLetterISOLanguageName == "vi" &&
-                                                           v.VoiceInfo.Gender == VoiceGender.Female)
-                ?? voices.FirstOrDefault(v => v.VoiceInfo.Culture.TwoLetterISOLanguageName == "vi")
-                ?? voices.FirstOrDefault(v => v.VoiceInfo.Gender == VoiceGender.Female);
-            if (preferred is not null) speaker.SelectVoice(preferred.VoiceInfo.Name);
+            AnVoiceSelector.Configure(speaker);
             speaker.SetOutputToDefaultAudioDevice();
             speaker.SpeakAsync(reply.Length > 4000 ? reply[..4000] : reply);
             await tcs.Task.WaitAsync(token);
@@ -374,7 +370,8 @@ public partial class AiAssistantWindow
         EndHandsFreeAndCancel();
         _history.Clear();
         ChatMessages.Clear();
-        ChatMessages.Add(new AiChatMessage(false, "Đã xóa hội thoại ở màn hình này. Rảnh tay đã tắt."));
+        ChatMessages.Add(new AiChatMessage(false, "Đã xóa hội thoại với An. Rảnh tay đã tắt."));
+        _lastAssistantText = "";
         ScrollToBottom();
     }
 
