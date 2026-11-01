@@ -54,16 +54,59 @@ public static class GeminiAssistantClient
     public static async Task<string> TranscribeVietnameseAsync(
         string apiKey, byte[] wav, CancellationToken cancellationToken = default)
     {
+        var requestBody = BuildTranscriptionRequest(wav);
         using var request = new HttpRequestMessage(HttpMethod.Post,
             "https://generativelanguage.googleapis.com/v1beta/interactions");
         request.Headers.Add("x-goog-api-key", apiKey);
-        request.Content = JsonContent.Create(BuildTranscriptionRequest(wav));
-        using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        request.Content = JsonContent.Create(requestBody);
+        using var response = await Client.SendAsync(request,
+            HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.IsSuccessStatusCode)
+            return await ReadInteractionsTextAsync(response, cancellationToken);
+
+        // The dedicated transcriber might not be enabled for a specific key/tier.
+        // Fall back once to the regular audio-understanding model, but never on
+        // quota/server failures, which could silently double-bill requests.
+        if (response.StatusCode is not (HttpStatusCode.BadRequest or
+            HttpStatusCode.Forbidden or HttpStatusCode.NotFound))
             throw ApiFailure(response.StatusCode, "nhận dạng tiếng Việt");
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+
+        using var backup = new HttpRequestMessage(HttpMethod.Post,
+            "https://generativelanguage.googleapis.com/v1beta/interactions");
+        backup.Headers.Add("x-goog-api-key", apiKey);
+        backup.Content = JsonContent.Create(BuildFallbackTranscriptionRequest(wav));
+        using var alternative = await Client.SendAsync(backup,
+            HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!alternative.IsSuccessStatusCode)
+            throw ApiFailure(alternative.StatusCode, "nhận dạng tiếng Việt bằng mô hình dự phòng");
+        return await ReadInteractionsTextAsync(alternative, cancellationToken);
+    }
+
+    public static object BuildFallbackTranscriptionRequest(byte[] wav)
+    {
+        // Validate WAV in the primary request builder before constructing any
+        // alternate payload. This is not a separate user-approved recording.
+        _ = BuildTranscriptionRequest(wav);
+        return new
+        {
+            model = Model,
+            input = new object[]
+            {
+                new { type = "text", text =
+                    "Đoạn này chứa tiếng Việt. Chép NGUYÊN VĂN bằng chữ có dấu; " +
+                    "giữ đúng mã hàng HISA. Không dịch, giải thích hay trả lời. " +
+                    "Nếu không có tiếng nói rõ thì trả chuỗi rỗng." },
+                new { type = "audio", data = Convert.ToBase64String(wav), mime_type = "audio/wav" }
+            }
+        };
+    }
+
+    private static async Task<string> ReadInteractionsTextAsync(
+        HttpResponseMessage response, CancellationToken token)
+    {
+        await using var stream = await response.Content.ReadAsStreamAsync(token);
         using var json = await JsonDocument.ParseAsync(stream,
-            new JsonDocumentOptions { MaxDepth = 40 }, cancellationToken);
+            new JsonDocumentOptions { MaxDepth = 40 }, token);
         return ExtractTranscript(json.RootElement);
     }
 
