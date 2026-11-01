@@ -182,8 +182,12 @@
                                 <ComboBox x:Name="InputMicrophoneBox" Grid.Column="1"
                                           DisplayMemberPath="Label" SelectionChanged="MicrophoneSelection_Changed"
                                           Height="31" MinWidth="200" ToolTip="Chọn micro USB, tai nghe hoặc micro laptop."/>
-                                <Button Grid.Column="2" Content="Làm mới mic" Click="RefreshMicrophones_Click"
-                                        Margin="8,0,0,0" Padding="10,5"/>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0">
+                                    <Button Content="Làm mới mic" Click="RefreshMicrophones_Click" Padding="10,5"/>
+                                    <Button x:Name="MicrophoneTestButton" Content="Thử mic" Click="TestMicrophone_Click"
+                                            Margin="6,0,0,0" Padding="10,5"
+                                            ToolTip="Nghe tín hiệu 8 giây ngay trên máy, không gửi lên Gemini."/>
+                                </StackPanel>
                             </Grid>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Tín hiệu mic" VerticalAlignment="Center"
