@@ -129,6 +129,37 @@ public partial class AiAssistantWindow
                 ActivityStatus.Text = "Gemini chưa nhận dạng được lời nói. Sẽ nghe lượt tiếp theo.";
                 return;
             }
+            // Local An actions are deterministic and require their own approval.
+            // Do not send an Excel-edit command to the free-form chat model.
+            var commandText = transcript.ToLowerInvariant();
+            if (AnCatalogEditService.TryParseCommand(transcript, out _) ||
+                commandText.Contains("phiếu yêu cầu nhập") ||
+                commandText.Contains("đề xuất nhập kho"))
+            {
+                StopHandsFree("An dừng rảnh tay để bạn xem và duyệt thao tác.");
+                BringToForeground?.Invoke();
+                TryHandleAnCommand(transcript);
+                return;
+            }
+            if (commandText.Contains("báo cáo tồn kho") ||
+                commandText.Contains("báo cáo tình trạng hàng") ||
+                commandText.Contains("kiểm tra tình trạng kho"))
+            {
+                ChatMessages.Add(new AiChatMessage(true, transcript));
+                var metrics = AiInventoryReport.Metrics(_state);
+                var briefing = $"An báo cáo tình trạng kho hiện tại theo dữ liệu đang lưu trong HISA. " +
+                    $"Có {metrics.OutOfStock} mã hết hoặc âm tồn, " +
+                    $"{metrics.LowStock} mã dưới tồn tối thiểu và " +
+                    $"{metrics.MovementsMonth} lượt nhập xuất trong 30 ngày. " +
+                    "Số liệu này có thể chưa được đồng bộ với Excel.";
+                _lastAssistantText = briefing;
+                ChatMessages.Add(new AiChatMessage(false, briefing));
+                ScrollToBottom();
+                HandsFreeStatus.Text = "An đang đọc báo cáo; micro tạm dừng.";
+                await SpeakReplyForHandsFreeAsync(briefing, token);
+                if (IsLive(generation, token)) await Task.Delay(750, token);
+                return;
+            }
             ChatMessages.Add(new AiChatMessage(true, transcript));
             ScrollToBottom();
             ActivityStatus.Text = "Đã nhận dạng: " + transcript;
