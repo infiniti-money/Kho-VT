@@ -10,7 +10,8 @@ namespace HisaWarehouse.Services;
 /// <summary>
 /// Appends confirmed Nhập / Xuất rows to the EXISTING table in KHO.xlsx.
 /// Only A,C,D,G,K,L may be assigned. B and calculated E,F,H,I,J remain untouched.
-/// All ZIP parts other than the "Nhập Xuất" sheet are copied unchanged.
+/// All ZIP parts other than the "Nhập Xuất" sheet and Excel calc metadata
+/// are copied unchanged. Existing formulas are never overwritten.
 /// No rewriting through ClosedXML: charts, 5 other sheets, external links,
 /// print layouts and existing shared formulas must survive byte-for-byte.
 /// </summary>
@@ -76,6 +77,19 @@ public static class PrimaryWorkbookTransactionWriter
                 using var originalZip = new ZipArchive(source, ZipArchiveMode.Read, leaveOpen: true);
                 var sheetEntry = ResolveSheet(originalZip, "Nhập Xuất");
                 XDocument document = LoadXml(originalZip, sheetEntry);
+                var workbookMetadata = LoadXml(originalZip, "xl/workbook.xml");
+                var calc = workbookMetadata.Descendants(M + "calcPr").FirstOrDefault();
+                if (calc is null)
+                {
+                    calc = new XElement(M + "calcPr");
+                    workbookMetadata.Root!.Add(calc);
+                }
+                // Cached formula results may be stale after writing input values.
+                // Ask Excel to recalculate the existing formulas on next opening;
+                // no formulas in any worksheet are modified.
+                calc.SetAttributeValue("calcMode", "auto");
+                calc.SetAttributeValue("fullCalcOnLoad", "1");
+                calc.SetAttributeValue("forceFullCalc", "1");
                 var sheetData = document.Descendants(M + "sheetData").Single();
                 var rows = sheetData.Elements(M + "row")
                     .ToDictionary(x => (int?)x.Attribute("r") ?? 0);
@@ -136,6 +150,8 @@ public static class PrimaryWorkbookTransactionWriter
                         using var outStream = created.Open();
                         if (entry.FullName.Equals(sheetEntry, StringComparison.Ordinal))
                             document.Save(outStream, SaveOptions.DisableFormatting);
+                        else if (entry.FullName == "xl/workbook.xml")
+                            workbookMetadata.Save(outStream, SaveOptions.DisableFormatting);
                         else
                         {
                             using var inStream = entry.Open();
@@ -155,7 +171,7 @@ public static class PrimaryWorkbookTransactionWriter
                 {
                     if (!expected.TryGetValue(entry.FullName, out var oldEntry))
                         throw new InvalidDataException("Gói Excel có thành phần lạ.");
-                    if (entry.FullName == sheetEntry) continue;
+                    if (entry.FullName == sheetEntry || entry.FullName == "xl/workbook.xml") continue;
                     using var oldStream = oldEntry.Open();
                     using var newStream = entry.Open();
                     if (!SHA256.HashData(oldStream).SequenceEqual(SHA256.HashData(newStream)))
