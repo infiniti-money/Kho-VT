@@ -75,6 +75,16 @@ public partial class ItemEditorWindow : Window, IWorkspaceDirtyPage
             SkuBox.Text = GenerateSku(state);
             BarcodeBox.Text = SkuBox.Text;
         }
+        if (_isEditing)
+        {
+            // The SKU identifies historical transactions and must never be
+            // modified after creation. Existing legacy barcode is retained.
+            SkuBox.IsReadOnly = true;
+            SkuBox.Focusable = false;
+            GenerateSkuButton.IsEnabled = false;
+        }
+        BarcodeBox.IsReadOnly = true;
+        BarcodeBox.Focusable = false;
         _isPopulating = false;
         UpdateBarcodePreview();
         _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
@@ -95,7 +105,7 @@ public partial class ItemEditorWindow : Window, IWorkspaceDirtyPage
 
     private void SkuTextChanged(object sender, TextChangedEventArgs e)
     {
-        if (!_barcodeOverridden)
+        if (!_isEditing)
         {
             _syncingBarcode = true;
             BarcodeBox.Text = SkuBox.Text;
@@ -140,6 +150,12 @@ public partial class ItemEditorWindow : Window, IWorkspaceDirtyPage
     private void Save_Click(object sender, RoutedEventArgs e)
     {
         var sku = SkuBox.Text.Trim().ToUpperInvariant();
+        if (_source is not null &&
+            !sku.Equals(_source.Sku, StringComparison.OrdinalIgnoreCase))
+        {
+            this.NotifyInline("Không thể sửa mã vật tư đã tạo. Hãy giữ nguyên mã hàng.");
+            return;
+        }
         var name = NameBox.Text.Trim();
         var category = CategoryBox.Text.Trim();
         var unit = UnitBox.Text.Trim();
@@ -169,7 +185,8 @@ public partial class ItemEditorWindow : Window, IWorkspaceDirtyPage
         {
             Id = _source?.Id ?? Guid.NewGuid().ToString("N"),
             Sku = sku,
-            Barcode = BarcodeBox.Text.Trim().ToUpperInvariant() is { Length: > 0 } barcode ? barcode : sku,
+            Barcode = _source is not null && !string.IsNullOrWhiteSpace(_source.Barcode)
+                ? _source.Barcode : sku,
             Name = name,
             Category = category,
             Unit = unit,
