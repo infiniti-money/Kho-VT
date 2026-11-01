@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Speech.Recognition;
 using System.Speech.Synthesis;
 using System.Windows;
 using System.Windows.Threading;
@@ -17,7 +16,6 @@ public partial class AiAssistantWindow : Window
 {
     private readonly InventoryState _state;
     private readonly List<AiChatTurn> _history = [];
-    private SpeechRecognitionEngine? _microphone;
     private SpeechSynthesizer? _speaker;
     private bool _busy;
 
@@ -103,7 +101,12 @@ public partial class AiAssistantWindow : Window
             ActivityStatus.Text = "Đang bật rảnh tay. Tắt rảnh tay trước khi gửi câu hỏi thủ công.";
             return;
         }
-        if (_busy) return;
+        if (_busy || _manualMicCts is not null)
+        {
+            if (_manualMicCts is not null)
+                ActivityStatus.Text = "Micro đang nghe hoặc nhận dạng. Hủy micro trước khi gửi câu hỏi thủ công.";
+            return;
+        }
         var question = QuestionInput.Text.Trim();
         if (string.IsNullOrWhiteSpace(question))
         {
@@ -193,56 +196,16 @@ public partial class AiAssistantWindow : Window
     {
         if (_handsFreeEnabled)
         {
-            ActivityStatus.Text = "Đang bật rảnh tay. Hãy tắt rảnh tay trước khi dùng micro thủ công.";
+            ActivityStatus.Text = "Đang bật rảnh tay. Hãy tắt rảnh tay trước khi dùng micro một lượt.";
             return;
         }
-        if (_microphone is not null)
+        if (_manualMicCts is not null)
         {
-            _microphone.RecognizeAsyncCancel();
-            ActivityStatus.Text = "Đang dừng ghi âm…";
+            StopManualMicrophone();
+            ActivityStatus.Text = "Đã hủy lượt micro. Không gửi thêm âm thanh tới Gemini.";
             return;
         }
-        try
-        {
-            var info = SpeechRecognitionEngine.InstalledRecognizers()
-                .FirstOrDefault(item => item.Culture.TwoLetterISOLanguageName == "vi");
-            if (info is null)
-            {
-                ActivityStatus.Text = "Windows chưa có bộ nhận dạng giọng nói tiếng Việt. " +
-                    "Bạn có thể nhập chữ hoặc cài bộ giọng nói tiếng Việt trong Windows.";
-                return;
-            }
-            _microphone = new SpeechRecognitionEngine(info);
-            _microphone.LoadGrammar(new DictationGrammar());
-            _microphone.SetInputToDefaultAudioDevice();
-            _microphone.SpeechRecognized += (_, args) =>
-                Dispatcher.BeginInvoke(() =>
-                {
-                    if (args.Result.Confidence < 0.4 || string.IsNullOrWhiteSpace(args.Result.Text)) return;
-                    QuestionInput.Text = args.Result.Text;
-                    QuestionInput.Focus();
-                    QuestionInput.CaretIndex = QuestionInput.Text.Length;
-                    ActivityStatus.Text = "Đã nhận giọng nói; kiểm tra lại câu hỏi rồi nhấn Gửi Gemini.";
-                });
-            _microphone.RecognizeCompleted += (_, args) =>
-                Dispatcher.BeginInvoke(() =>
-                {
-                    _microphone?.Dispose();
-                    _microphone = null;
-                    MicButton.Content = "🎙 Mic";
-                    if (args.Error is not null) ActivityStatus.Text = "Lỗi nhận dạng giọng nói: " + args.Error.Message;
-                });
-            _microphone.RecognizeAsync(RecognizeMode.Single);
-            MicButton.Content = "■ Dừng mic";
-            ActivityStatus.Text = "Đang nghe tiếng Việt qua micro của Windows…";
-        }
-        catch (Exception ex)
-        {
-            _microphone?.Dispose();
-            _microphone = null;
-            MicButton.Content = "🎙 Mic";
-            ActivityStatus.Text = "Không mở được micro: " + ex.Message;
-        }
+        StartManualMicrophone();
     }
 
     private void StopSpeaking_Click(object sender, RoutedEventArgs e)
