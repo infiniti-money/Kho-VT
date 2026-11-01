@@ -16,6 +16,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Avoid global System.Windows.Forms imports colliding with WPF controls. -->
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Keep smoke-test code out of the WPF application compilation. -->
     <Compile Remove="tests\\**\\*.cs" />
     <Compile Remove="Updater\\**\\*.cs" />
