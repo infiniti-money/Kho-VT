@@ -1100,6 +1100,24 @@ public partial class MainWindow : Window
         await _excelMovementWriteGate.WaitAsync();
         try
         {
+            // If Excel formula cells H/I/J (or protected catalog formulas) were
+            // deleted/overwritten, use ONLY a structurally verified HISA backup.
+            // Repair happens before the transaction; never regenerate formulas
+            // by guessing. Save the repaired workbook fingerprint so a later
+            // rejected receipt cannot accidentally write against a stale hash.
+            var formulaCheck = await Task.Run(() =>
+                AutomaticFormulaRecovery.EnsureProtectedFormulas(path, expectedExcelHash));
+            if (formulaCheck.Recovered)
+            {
+                expectedExcelHash = formulaCheck.WorkbookHash;
+                State.PrimarySyncFingerprint = formulaCheck.WorkbookHash;
+                State.PrimaryExcelSyncedWriteUtc = File.GetLastWriteTimeUtc(path);
+                if (!await PersistAsync(false))
+                    throw new IOException("Đã phục hồi công thức nhưng không lưu được dấu vân tay Excel. " +
+                        "Hãy đồng bộ lại trước khi ghi phiếu.");
+                ShowToast($"Đã tự phục hồi {formulaCheck.RestoredCells} ô công thức " +
+                    "từ bản sao HISA đã xác minh. Excel sẽ tính lại khi mở.");
+            }
             // The authoritative source for an unknown incoming SKU is the
             // separate reference catalog. Never inherit its stock quantity.
             // Only validated name/unit enter a new blank catalog row in KHO.
