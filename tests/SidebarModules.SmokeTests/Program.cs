@@ -159,6 +159,9 @@ var receiptCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
 if (!receiptCode.Contains("TryResolveNewReceiptMaterial", StringComparison.Ordinal) ||
     !receiptCode.Contains("ReferenceMaterialLookup.Read", StringComparison.Ordinal))
     throw new InvalidOperationException("Unknown SKU is not searched in the reference material catalog.");
+var bravoView = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "ReferenceInventoryWindow.xaml"));
+if (!bravoView.Descendants().Any(el => (string?)el.Attribute("Click") == "ExportBravoComparison_Click"))
+    throw new InvalidOperationException("Bravo comparison must offer a complete read-only Excel export.");
 var bravoReader = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "Services", "BravoStockReader.cs"));
 if (!bravoReader.Contains("sheet.Cell(row, 1)", StringComparison.Ordinal) ||
     !bravoReader.Contains("sheet.Cell(row, 2)", StringComparison.Ordinal) ||
