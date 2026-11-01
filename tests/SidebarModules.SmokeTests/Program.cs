@@ -75,6 +75,10 @@ if (chat.Descendants().Any(el => el.Name.LocalName == "Button" &&
     ((string?)el.Attribute("Content") == "Đóng trang" ||
     (string?)el.Attribute("Click") == "Close_Click")))
     throw new InvalidOperationException("An chat should not show a redundant Close page button.");
+if (chat.Descendants().Count(el => Name(el) == "ReadWorkbooksCheck") != 1 ||
+    !chat.Descendants().Any(el => (string?)el.Attribute("Click") == "CompareBravo_Click"))
+    throw new InvalidOperationException("An must have local read permission and a two-file Bravo compare button.");
+
 foreach (var id in new[] { "HandsFreeButton", "InputMicrophoneBox", "MicrophoneTestButton" })
     if (chat.Descendants().Count(el => Name(el) == id) != 1)
         throw new InvalidOperationException("An microphone controls missing: " + id);
@@ -155,4 +159,14 @@ var receiptCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
 if (!receiptCode.Contains("TryResolveNewReceiptMaterial", StringComparison.Ordinal) ||
     !receiptCode.Contains("ReferenceMaterialLookup.Read", StringComparison.Ordinal))
     throw new InvalidOperationException("Unknown SKU is not searched in the reference material catalog.");
-Console.WriteLine("PASS: 11 flat functions, An second, quick receipt/shipment, product categories, sender/recipient, one-click UAC updater, reference SKU lookup, inline labels and multi-SKU reports.");
+var bravoReader = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "Services", "BravoStockReader.cs"));
+if (!bravoReader.Contains("sheet.Cell(row, 1)", StringComparison.Ordinal) ||
+    !bravoReader.Contains("sheet.Cell(row, 2)", StringComparison.Ordinal) ||
+    !bravoReader.Contains("sheet.Cell(row, 3)", StringComparison.Ordinal) ||
+    !bravoReader.Contains("sheet.Cell(row, 12)", StringComparison.Ordinal))
+    throw new InvalidOperationException("Bravo must read exact A/B/C/L columns and signed stock.");
+var an = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "AiAssistantWindow.xaml.cs"));
+if (!an.Contains("ShareDataCheck.IsChecked != true", StringComparison.Ordinal) ||
+    !an.Contains("BravoStockComparison.Read(_state)", StringComparison.Ordinal))
+    throw new InvalidOperationException("An must compare local files while requiring separate Gemini data-sharing consent.");
+Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");
