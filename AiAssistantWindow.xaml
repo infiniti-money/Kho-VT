@@ -1,7 +1,7 @@
 <Window x:Class="HisaWarehouse.AiAssistantWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Trợ lý kho AI · HISA" Icon="Assets/hisa.ico" Width="1190" Height="790"
+        Title="An · Trợ lý kho HISA" Icon="Assets/hisa.ico" Width="1190" Height="790"
         Background="#F1F5FB" FontFamily="Segoe UI" MinWidth="1000" MinHeight="680">
     <Window.Resources>
         <Style x:Key="AiAction" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
@@ -30,11 +30,11 @@
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Text="✦  TRUNG TÂM AI KHO VẬT TƯ" Foreground="#ACDCEF"
+                    <TextBlock Text="✦  AN · TRỢ LÝ KHO VẬT TƯ" Foreground="#ACDCEF"
                                FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
-                    <TextBlock Text="Hỏi kho bằng tiếng Việt" Foreground="White"
+                    <TextBlock Text="Trò chuyện cùng An" Foreground="White"
                                FontSize="25" FontWeight="Bold"/>
-                    <TextBlock Text="Phân tích nhập · xuất · tồn, cảnh báo vật tư và trao đổi với Gemini"
+                    <TextBlock Text="An kiểm tra tồn kho, báo cáo, hỗ trợ lập phiếu và nói tiếng Việt"
                                Foreground="#D8E9FA" FontSize="12" Margin="0,7,0,0"/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="Đóng trang" Click="Close_Click" Padding="16,10"
@@ -64,8 +64,10 @@
                             <TextBlock x:Name="MovementCountText" Foreground="#607B97" FontSize="11" Margin="0,13,0,12" TextWrapping="Wrap"/>
                             <Button Content="Xem báo cáo nhập / xuất 7–30 ngày" Style="{StaticResource AiSecondary}"
                                     Click="LocalReport_Click" HorizontalAlignment="Stretch"/>
-                            <Button Content="Xem và duyệt đề xuất nhập kho" Style="{StaticResource AiAction}"
+                            <Button Content="An lập đề xuất nhập kho để duyệt" Style="{StaticResource AiAction}"
                                     Click="ReviewProposals_Click" Margin="0,9,0,0" HorizontalAlignment="Stretch"/>
+                            <Button Content="🔊 An đọc nội dung mới nhất" Style="{StaticResource AiSecondary}"
+                                    Click="ReadAloud_Click" Margin="0,9,0,0" HorizontalAlignment="Stretch"/>
                         </StackPanel>
                     </Border>
 
@@ -108,13 +110,13 @@
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="Trò chuyện với trợ lý HISA" FontWeight="Bold" FontSize="15" Foreground="#16314F"/>
-                                <TextBlock Text="Bạn có thể hỏi về tồn kho, nhập xuất và vật tư sắp hết"
+                                <TextBlock Text="Trò chuyện với An" FontWeight="Bold" FontSize="15" Foreground="#16314F"/>
+                                <TextBlock Text="An hỗ trợ báo cáo, lập đề xuất có duyệt và đọc nội dung"
                                            Foreground="#8293A6" FontSize="11" Margin="0,3,0,0"/>
                             </StackPanel>
                             <Button Grid.Column="1" Content="Xóa hội thoại" Click="ClearChat_Click" Margin="0,0,10,0" Padding="10,7" VerticalAlignment="Center"/>
                             <Border Grid.Column="2" Background="#E7F7F1" CornerRadius="10" Padding="10,6" VerticalAlignment="Center">
-                                <TextBlock Text="●  AI hỗ trợ phân tích" FontWeight="SemiBold" FontSize="10.5" Foreground="#177A63"/>
+                                <TextBlock Text="●  An · AI kho vật tư" FontWeight="SemiBold" FontSize="10.5" Foreground="#177A63"/>
                             </Border>
                         </Grid>
                     </Border>
@@ -175,8 +177,12 @@
                                 <TextBlock x:Name="HandsFreeStatus" Text="Rảnh tay đang tắt" Foreground="#365F78"
                                            FontSize="11" Margin="12,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
-                            <TextBlock Text="Khi bật rảnh tay: tiếng nói được gửi qua Internet tới Gemini; micro dừng khi AI trả lời và loa đang đọc. Không tự bật khi mở trang."
+                            <CheckBox x:Name="BackgroundListeningCheck" Content="Cho An tiếp tục rảnh tay khi thu nhỏ HISA xuống khay hệ thống"
+                                      FontSize="11" Foreground="#365F78" IsChecked="False" Margin="0,8,0,0"/>
+                            <TextBlock Text="An chỉ nghe khi bạn bật rảnh tay và đồng ý gửi âm thanh tới Gemini. Thu nhỏ xuống khay hệ thống không tự tắt micro; mở lại hoặc tắt rảnh tay để dừng. Không tự bật khi mở HISA."
                                        Foreground="#53788E" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                            <TextBlock Text="Giọng An ưu tiên nữ tiếng Việt cài trên Windows. Giọng Hà Nội chuẩn còn phụ thuộc gói giọng nói được cài."
+                                       Foreground="#53788E" FontSize="10" TextWrapping="Wrap" Margin="0,5,0,0"/>
                         </StackPanel>
                     </Border>
                 </Grid>
