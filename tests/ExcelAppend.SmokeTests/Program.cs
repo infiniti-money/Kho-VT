@@ -59,7 +59,11 @@ void BuildWorkbook(bool missingFormula = false)
                 Str("B" + row, "Vật tư thử"), Str("C" + row, "Cái"), Num("D" + row, 10),
                 Num("E" + row, 2));
         foreach (string col in new[] { "F", "G", "I", "J", "K" })
-            cells.Add(Formula(col + row, row));
+            cells.Add(col == "F" && row == 4
+                ? new XElement(m + "c", new XAttribute("r", "F4"),
+                    new XElement(m + "f", "SUMIFS('Nhập Xuất'!$G$5:$G$965,'Nhập Xuất'!$D$5:$D$965,A4)"),
+                    new XElement(m + "v", "12"))
+                : Formula(col + row, row));
         catalog.Add(cells);
     }
     Add("xl/worksheets/sheet1.xml", new XDocument(new XElement(m + "worksheet", catalog)));
@@ -85,7 +89,19 @@ void BuildWorkbook(bool missingFormula = false)
         if (row == 7) cells.Add(Str("M7", "Ô trợ giúp, phải giữ"));
         data.Add(cells);
     }
-    Add("xl/worksheets/sheet2.xml", new XDocument(new XElement(m + "worksheet", data)));
+    Add("xl/worksheets/sheet2.xml", new XDocument(new XElement(m + "worksheet",
+        new XElement(m + "dimension", new XAttribute("ref", "A1:Q965")),
+        data,
+        new XElement(m + "dataValidations", new XAttribute("count", "1"),
+            new XElement(m + "dataValidation", new XAttribute("sqref", "C5:C965"))))));
+    Add("xl/tables/table2.xml", new XDocument(new XElement(m + "table",
+        new XAttribute("name", "tbl_NhapXuat7"), new XAttribute("ref", "A4:L965"),
+        new XElement(m + "autoFilter", new XAttribute("ref", "A4:L965")))));
+    Add("xl/worksheets/sheet5.xml", new XDocument(new XElement(m + "worksheet",
+        new XElement(m + "sheetData", new XElement(m + "row", new XAttribute("r", 3),
+            new XElement(m + "c", new XAttribute("r", "A3"),
+                new XElement(m + "f", "SUM('Nhập Xuất'!$G$5:$G$965)"),
+                new XElement(m + "v", "0")))))));
     Add("xl/worksheets/sheet3.xml",
         new XDocument(new XElement(m + "worksheet", new XElement(m + "sheetData",
             new XElement(m + "row", new XAttribute("r", 1), Str("A1", "Báo cáo cần bảo toàn"))))));
@@ -170,16 +186,32 @@ try
     }
     File.Delete(lockPath);
 
-    try
+    var many = Enumerable.Repeat(moved[0], 920).ToArray();
+    var expanded = PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-003", many);
+    Check(expanded.FirstRow == 9, "automatically append 920 lines after prior transactions");
+    using (var workbook = ZipFile.OpenRead(file))
     {
-        var many = Enumerable.Repeat(moved[0], 960).ToArray();
-        PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-003", many);
-        throw new Exception("Beyond formula coverage was accepted.");
-    }
-    catch (InvalidDataException)
-    {
-        Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(originalBytes),
-            "capacity >965 rejected without changing workbook");
+        var tx = Sheet(workbook, "xl/worksheets/sheet2.xml");
+        var finalRow = PrimaryWorkbookTableExpander.LastRow(tx);
+        Check(finalRow >= 978 && finalRow - 928 >= 50,
+            "grow table with at least 50 free input rows after all new transactions");
+        Check(Cell(tx, "I" + finalRow).Element(m + "f") is not null &&
+              Cell(tx, "H" + finalRow).Element(m + "f") is not null,
+            "extend calculated columns to final spare row");
+        var table = Sheet(workbook, "xl/tables/table2.xml");
+        Check((string?)table.Root?.Attribute("ref") == "A4:L" + finalRow,
+            "extend tbl_NhapXuat7 including its table metadata");
+        var cat = Sheet(workbook, "xl/worksheets/sheet1.xml");
+        var printed = Sheet(workbook, "xl/worksheets/sheet5.xml");
+        Check(Cell(cat, "F4").Element(m + "f")!.Value.Contains("$G$" + finalRow) &&
+              Cell(printed, "A3").Element(m + "f")!.Value.Contains("$G$" + finalRow),
+            "update inventory SUMIFS and original Phiếu in template formula references");
+        Check(SHA256.HashData(File.ReadAllBytes(expanded.BackupPath)).SequenceEqual(originalBytes),
+            "keep exact pre-expansion workbook as backup");
+        Check(Text(Cell(tx, "M7")) == "Ô trợ giúp, phải giữ",
+            "unrelated cells on transaction sheet retained after expansion");
+        Check((string?)tx.Descendants(m + "dataValidation").Single().Attribute("sqref") ==
+            "C5:C" + finalRow, "expand import/export type validation");
     }
 
     File.Delete(file);
