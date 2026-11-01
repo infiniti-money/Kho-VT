@@ -23,6 +23,7 @@ public partial class AiAssistantWindow : Window
     public ObservableCollection<AiChatMessage> ChatMessages { get; } = [];
     // Open the existing human-reviewed replenishment form, never apply changes from AI.
     public Action? OpenReplenishment { get; set; }
+    public Action<AnCatalogEditService.Plan>? ReviewCatalogEdit { get; set; }
     public bool IsHandsFreeActive => _handsFreeEnabled;
     public bool KeepListeningWhenMinimized => _handsFreeEnabled &&
         BackgroundListeningCheck.IsChecked == true;
@@ -120,6 +121,8 @@ public partial class AiAssistantWindow : Window
             return;
         }
 
+        if (TryHandleAnCommand(question)) return;
+
         string key;
         try { key = GeminiKeyStore.Load(); }
         catch (Exception ex) { ActivityStatus.Text = ex.Message; return; }
@@ -213,6 +216,52 @@ public partial class AiAssistantWindow : Window
         }
         if (!TryCloseAssistant()) return;
         OpenReplenishment?.Invoke();
+    }
+
+    private bool TryHandleAnCommand(string question)
+    {
+        if (AnCatalogEditService.TryParseCommand(question, out var edit) && edit is not null)
+        {
+            ChatMessages.Add(new AiChatMessage(true, question));
+            QuestionInput.Clear();
+            try
+            {
+                var plan = AnCatalogEditService.Prepare(
+                    _state.PrimaryExcelPath, _state.PrimarySyncFingerprint, edit);
+                ChatMessages.Add(new AiChatMessage(false,
+                    "An đã kiểm tra file Excel và chuẩn bị bản xem trước. " +
+                    "Bạn cần xác nhận trước khi An sửa ô dữ liệu."));
+                ReviewCatalogEdit?.Invoke(plan);
+            }
+            catch (Exception ex)
+            {
+                ChatMessages.Add(new AiChatMessage(false,
+                    "An không sửa file vì điều kiện bảo vệ chưa đạt: " + ex.Message));
+            }
+            ScrollToBottom();
+            return true;
+        }
+        var lowered = question.ToLowerInvariant();
+        if (lowered.Contains("phiếu yêu cầu nhập") ||
+            lowered.Contains("đề xuất nhập kho") || lowered.Contains("lập phiếu nhập đề xuất"))
+        {
+            ChatMessages.Add(new AiChatMessage(true, question));
+            ChatMessages.Add(new AiChatMessage(false,
+                "An sẽ mở đề xuất từ tồn tối thiểu. Bạn cần chọn số lượng, lưu phiếu " +
+                "ở trạng thái Chờ duyệt, rồi tự phê duyệt ở mục Yêu cầu vật tư. " +
+                "An không tự cộng tồn kho."));
+            if (TryCloseAssistant()) OpenReplenishment?.Invoke();
+            return true;
+        }
+        if (lowered.Contains("báo cáo tồn kho") ||
+            lowered.Contains("báo cáo tình trạng hàng") || lowered.Contains("kiểm tra tình trạng kho"))
+        {
+            ChatMessages.Add(new AiChatMessage(true, question));
+            QuestionInput.Clear();
+            LocalReport_Click(this, new RoutedEventArgs());
+            return true;
+        }
+        return false;
     }
 
     private void Microphone_Click(object sender, RoutedEventArgs e)
