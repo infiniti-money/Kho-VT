@@ -83,7 +83,7 @@ public partial class ReplenishmentWindow : Window
             Requester = RequesterBox.Text.Trim(),
             Note = $"Đề xuất bổ sung theo mức tồn tối thiểu tại kho {warehouse}." +
                    (string.IsNullOrWhiteSpace(NoteBox.Text) ? "" : $" {NoteBox.Text.Trim()}"),
-            Status = "Chờ xử lý",
+            Status = "Chờ duyệt",
             Lines = selected.Select(suggestion => new MovementLine
             {
                 Sku = suggestion.Sku,
