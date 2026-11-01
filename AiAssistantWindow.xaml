@@ -28,7 +28,7 @@
                 </LinearGradientBrush>
             </Border.Background>
             <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="✦  AN · TRỢ LÝ KHO VẬT TƯ" Foreground="#ACDCEF"
                                FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
@@ -37,9 +37,6 @@
                     <TextBlock Text="An kiểm tra tồn kho, báo cáo, hỗ trợ lập phiếu và nói tiếng Việt"
                                Foreground="#D8E9FA" FontSize="12" Margin="0,7,0,0"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="Đóng trang" Click="Close_Click" Padding="16,10"
-                        Background="#E8F2FF" Foreground="#164062" BorderThickness="0"
-                        FontWeight="SemiBold" VerticalAlignment="Center" Cursor="Hand"/>
             </Grid>
         </Border>
 
