@@ -151,6 +151,43 @@ string Text(XElement cell) =>
 
 try
 {
+    // A reserve-material request is only a pending document, not an inventory
+    // receipt/shipment. Manual lines may have no SKU yet, and do not create
+    // catalog products or Excel transactions.
+    var requestState = new HisaWarehouse.InventoryState();
+    var reserve = new HisaWarehouse.MaterialRequest
+    {
+        Type = "Yêu cầu cấp vật tư dự phòng",
+        Requester = "Nhân viên bảo trì",
+        Recipient = "Bộ phận kỹ thuật",
+        Status = "Chờ xử lý",
+        Lines =
+        [
+            new() { Sku = "", ItemName = "Vòng bi dự phòng", Unit = "Bộ", Quantity = 2 },
+            new() { Sku = "", ItemName = "Dây nguồn dự phòng", Unit = "Mét", Quantity = 4 },
+            new() { Sku = "VT-NEW", ItemName = "Cáp điều khiển", Unit = "Cuộn", Quantity = 1 }
+        ]
+    };
+    MaterialRequestService.Add(requestState, reserve);
+    Check(reserve.DocNo.StartsWith("YC-DP-", StringComparison.Ordinal) &&
+          reserve.Lines.Count == 3 &&
+          reserve.Lines.Count(line => line.Sku.Length == 0) == 2,
+          "reserve request persists independent manual lines with optional SKU");
+    Check(requestState.MaterialRequests.Count == 1 && requestState.Products.Count == 0 &&
+          requestState.Transactions.Count == 0,
+          "saving a reserve request does not create products, transactions or change stock");
+    MaterialRequestService.Add(requestState, new HisaWarehouse.MaterialRequest
+    {
+        Type = "Yêu cầu cấp vật tư", Lines = [new() { Sku = "VT001", ItemName = "Mẫu", Unit = "Cái", Quantity = 1 }]
+    });
+    MaterialRequestService.Add(requestState, new HisaWarehouse.MaterialRequest
+    {
+        Type = "Yêu cầu nhập vật tư", Lines = [new() { Sku = "VT002", ItemName = "Mẫu", Unit = "Cái", Quantity = 1 }]
+    });
+    Check(requestState.MaterialRequests.Count == 3 &&
+          requestState.MaterialRequests.Any(q => q.DocNo.StartsWith("YC-CAP-", StringComparison.Ordinal)) &&
+          requestState.MaterialRequests.Any(q => q.DocNo.StartsWith("YC-NHAP-", StringComparison.Ordinal)),
+          "existing request types and historical document-number prefixes remain compatible");
     BuildWorkbook();
     var verifiedBackup = Path.Combine(scratch, "KHO-verified.bak");
     File.Copy(file, verifiedBackup);
