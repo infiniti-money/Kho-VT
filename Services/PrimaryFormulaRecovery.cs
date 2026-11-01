@@ -21,12 +21,12 @@ public static class PrimaryFormulaRecovery
     public sealed record Plan(string TargetPath, string VerifiedBackupPath,
         string TargetHash, string BackupHash, IReadOnlyList<FormulaCell> Missing)
     {
-        public string Summary => $"Phát hiện {Missing.Count:N0} ô công thức thiếu.\\n" +
+        public string Summary => $"Phát hiện {Missing.Count:N0} ô công thức thiếu.\n" +
             "Khôi phục CHỈ công thức tại: " +
             string.Join(", ", Missing.Take(12).Select(c => c.Sheet + "!" + c.Address)) +
             (Missing.Count > 12 ? $" và {Missing.Count - 12} ô khác" : "") +
-            "\\nNguồn: " + VerifiedBackupPath +
-            "\\nHISA sẽ tạo thêm bản sao lưu trước khi sửa và buộc Excel tính lại khi mở. " +
+            "\nNguồn: " + VerifiedBackupPath +
+            "\nHISA sẽ tạo thêm bản sao lưu trước khi sửa và buộc Excel tính lại khi mở. " +
             "Không tự chỉnh những ô có công thức khác mẫu.";
     }
 
