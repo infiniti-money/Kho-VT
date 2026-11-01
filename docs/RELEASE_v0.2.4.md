@@ -12,6 +12,7 @@
 - Cột L **chấp nhận tồn dương, bằng 0 hoặc âm**. Không lấy cột D/G hoặc chọn cột dựa trên tên tiêu đề tùy ý.
 - Trùng mã qua nhiều dòng Bravo được cộng số lượng có dấu nếu tên và đơn vị thống nhất; dữ liệu thiếu/sai số không bị lặng lẽ tính là 0.
 - So theo mã không phân biệt hoa/thường. Chênh lệch = **Bravo − KHO.xlsx**; hiển thị mã khớp, mã lệch, mã thiếu ở một trong hai nguồn và số mã tồn âm.
+- Có nút **Xuất đối chiếu Excel** để lưu tất cả dòng và số âm ra file báo cáo riêng; không sửa hai file nguồn.
 - **Không cộng tồn Bravo vào tồn HISA**, không sửa số dư / giao dịch / công thức và không thay đổi file Bravo khi chỉ đối chiếu.
 - Người dùng chọn file **KHO.xlsx chính** và **tổng hợp Bravo .xlsx** trong phần Dữ liệu Excel; giữ nguyên đường dẫn đã lưu qua phiên bản.
 
