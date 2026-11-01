@@ -46,54 +46,62 @@ public static class AnGeminiSpeechService
     private static async Task<byte[]> SynthesizeAsync(string apiKey, string text, CancellationToken cancel)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post,
-            $"https://generativelanguage.googleapis.com/v1beta/models/{Model}:generateContent");
+            "https://generativelanguage.googleapis.com/v1beta/interactions");
         request.Headers.Add("x-goog-api-key", apiKey);
-        request.Content = JsonContent.Create(new
-        {
-            contents = new[] { new { role = "user", parts = new[] { new
-            {
-                text = text.Length > 2800 ? text[..2800] : text,
-                speechMetadata = new
-                {
-                    style = "Nữ Việt Nam, giọng Hà Nội chuẩn miền Bắc, dịu dàng, ấm áp, " +
-                        "tốc độ vừa phải, rõ từng chữ, đọc đúng số lượng vật tư."
-                }
-            } } } },
-            generationConfig = new
-            {
-                responseModalities = new[] { "AUDIO" },
-                speechConfig = new
-                {
-                    languageCode = "vi-VN",
-                    voiceConfig = new { voice = "Leda" }
-                }
-            }
-        });
+        request.Content = JsonContent.Create(BuildSpeechRequest(text));
         using var response = await Client.SendAsync(request,
             HttpCompletionOption.ResponseHeadersRead, cancel);
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"Gemini TTS HTTP {(int)response.StatusCode}. " +
-                "Hãy kiểm tra quyền sử dụng giọng đọc, kết nối và hạn mức API.");
-
+            throw GeminiAssistantClient.ApiFailure(response.StatusCode, "đọc giọng An");
         await using var stream = await response.Content.ReadAsStreamAsync(cancel);
         using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancel);
-        if (!json.RootElement.TryGetProperty("candidates", out var candidates) ||
-            candidates.GetArrayLength() == 0 ||
-            !candidates[0].TryGetProperty("content", out var content) ||
-            !content.TryGetProperty("parts", out var parts))
-            throw new InvalidDataException("Gemini chưa tạo được âm thanh.");
+        return ExtractWav(json.RootElement);
+    }
 
-        foreach (var part in parts.EnumerateArray())
+    public static object BuildSpeechRequest(string text) => new
+    {
+        model = Model,
+        input = new[] { new
         {
-            if (!part.TryGetProperty("inlineData", out var inline) ||
-                !inline.TryGetProperty("data", out var data) ||
-                data.ValueKind != JsonValueKind.String) continue;
-            var wav = Convert.FromBase64String(data.GetString() ?? "");
-            if (wav.Length < 44 || wav.Length > 20_000_000 ||
-                System.Text.Encoding.ASCII.GetString(wav, 0, 4) != "RIFF")
-                throw new InvalidDataException("Gemini trả âm thanh không phải WAV hợp lệ.");
-            return wav;
+            type = "user_input",
+            content = new[] { new
+            {
+                type = "text",
+                text = text.Length > 2800 ? text[..2800] : text,
+                annotations = new[] { new
+                {
+                    type = "speech_metadata",
+                    style = "Nữ tiếng Việt, giọng Hà Nội miền Bắc, dịu dàng và ấm áp, " +
+                            "tốc độ vừa phải, phát âm rõ số lượng vật tư."
+                } }
+            } }
+        } },
+        response_format = new { type = "audio", mime_type = "audio/wav" },
+        generation_config = new { speech_config = new[] { new { voice = "Leda" } } }
+    };
+
+    public static byte[] ExtractWav(JsonElement root)
+    {
+        if (!root.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("Gemini không trả bước âm thanh.");
+        foreach (var step in steps.EnumerateArray())
+        {
+            if (!step.TryGetProperty("type", out var type) || type.GetString() != "model_output" ||
+                !step.TryGetProperty("content", out var parts) || parts.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var part in parts.EnumerateArray())
+            {
+                if (!part.TryGetProperty("type", out var kind) || kind.GetString() != "audio" ||
+                    !part.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.String)
+                    continue;
+                var wav = Convert.FromBase64String(data.GetString() ?? "");
+                if (wav.Length < 44 || wav.Length > 20_000_000 ||
+                    System.Text.Encoding.ASCII.GetString(wav, 0, 4) != "RIFF" ||
+                    System.Text.Encoding.ASCII.GetString(wav, 8, 4) != "WAVE")
+                    throw new InvalidDataException("Gemini trả âm thanh WAV không hợp lệ.");
+                return wav;
+            }
         }
-        throw new InvalidDataException("Gemini không trả tệp giọng nói WAV.");
+        throw new InvalidDataException("Gemini chưa gửi giọng đọc trong phản hồi.");
     }
 }

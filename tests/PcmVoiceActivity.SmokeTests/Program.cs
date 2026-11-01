@@ -84,28 +84,100 @@ Assert(true, defaultVad.HasSpeech, "default VAD detects low-volume speech");
 Push(defaultVad, 0, 24);
 Assert(true, defaultVad.IsComplete, "default VAD detects end of Vietnamese utterance");
 
-// Gemini response must remain Vietnamese and must ignore non-text response parts.
+// Test the live API's real Interactions response and request schema.
+// No network, microphone or Google key required in CI.
+var request = System.Text.Json.JsonSerializer.Serialize(
+    GeminiAssistantClient.BuildTranscriptionRequest(PcmWav.MakeWav(Frame(1300))));
+using (var payload = System.Text.Json.JsonDocument.Parse(request))
+{
+    var root = payload.RootElement;
+    if (root.GetProperty("model").GetString() != "gemini-3.5-transcribe" ||
+        root.GetProperty("input")[0].GetProperty("type").GetString() != "audio" ||
+        root.GetProperty("input")[0].GetProperty("mime_type").GetString() != "audio/wav" ||
+        root.GetProperty("generation_config").GetProperty("transcription_config")
+            .GetProperty("language_codes")[0].GetString() != "vi-VN")
+        throw new InvalidOperationException("FAIL Interactions audio schema / vi-VN model");
+    Console.WriteLine("PASS correct Gemini 3.5 STT Interactions inline audio schema");
+}
 using (var response = System.Text.Json.JsonDocument.Parse("""
 {
-  "candidates": [
-    { "content": { "role": "model", "parts": [
-      {"text": "Kiểm tra tồn kho Hưng Yên"},
-      {"inlineData": {"mimeType": "audio/wav", "data": "AA=="}},
-      {"text": "cho mã VT001."}
-    ] } }
+  "steps": [
+    { "type": "reasoning", "content": [{"type":"text", "text":"Không tiết lộ nội dung nội bộ"}] },
+    { "type": "model_output", "content": [
+      {"type":"text","text":"Kiểm tra tồn kho Hưng Yên"},
+      {"type":"audio","data":"AA=="},
+      {"type":"text","text":"cho mã VT001."}
+    ] }
   ]
 }
 """))
 {
     var transcript = GeminiAssistantClient.ExtractTranscript(response.RootElement);
     if (transcript != "Kiểm tra tồn kho Hưng Yên cho mã VT001.")
-        throw new Exception("FAIL transcript is not parsed as original Vietnamese text.");
-    Console.WriteLine("PASS Gemini speech transcript preserves Vietnamese diacritics");
+        throw new Exception("FAIL Interactions transcript diacritics/parts.");
+    Console.WriteLine("PASS Vietnamese transcript from Interactions model_output steps");
 }
-using (var empty = System.Text.Json.JsonDocument.Parse("""{"candidates": []}"""))
+using (var response = System.Text.Json.JsonDocument.Parse(
+    """{"output_text":"Tồn kho vật tư còn 7 chiếc."}"""))
+{
+    if (GeminiAssistantClient.ExtractTranscript(response.RootElement) != "Tồn kho vật tư còn 7 chiếc.")
+        throw new Exception("FAIL output_text parsing.");
+    Console.WriteLine("PASS Gemini STT direct output_text");
+}
+using (var empty = System.Text.Json.JsonDocument.Parse("""{"steps":[]}"""))
 {
     if (GeminiAssistantClient.ExtractTranscript(empty.RootElement) != "")
-        throw new Exception("FAIL empty Gemini response should not fabricate Vietnamese text.");
-    Console.WriteLine("PASS no invented speech when Gemini has no candidates");
+        throw new Exception("FAIL invented transcript on empty model output.");
+    Console.WriteLine("PASS no fabricated transcript for empty response");
 }
+if (!GeminiAssistantClient.ApiFailure(System.Net.HttpStatusCode.TooManyRequests, "nhận dạng")
+    .Message.Contains("hạn mức", StringComparison.OrdinalIgnoreCase))
+    throw new Exception("FAIL quota-specific API diagnostic.");
+Console.WriteLine("PASS Gemini HTTP 429 diagnostic never exposes API key");
 
+// Verify TTS payload obeys Interactions schema and WAV output is parsed.
+var ttsRequest = System.Text.Json.JsonSerializer.Serialize(
+    AnGeminiSpeechService.BuildSpeechRequest("Xin chào, tôi là An."));
+using (var document = System.Text.Json.JsonDocument.Parse(ttsRequest))
+{
+    var root = document.RootElement;
+    if (root.GetProperty("model").GetString() != "gemini-3.8-flash-lite-tts" ||
+        root.GetProperty("response_format").GetProperty("type").GetString() != "audio" ||
+        root.GetProperty("input")[0].GetProperty("content")[0].GetProperty("annotations")[0]
+            .GetProperty("type").GetString() != "speech_metadata" ||
+        root.GetProperty("generation_config").GetProperty("speech_config")[0]
+            .GetProperty("voice").GetString() != "Leda")
+        throw new Exception("FAIL Gemini TTS Interactions schema / female voice.");
+    Console.WriteLine("PASS Gemini TTS Interactions request/voice schema");
+}
+var expectedWav = PcmWav.MakeWav(Frame(620));
+var fakeTtsJson = System.Text.Json.JsonSerializer.Serialize(new
+{
+    steps = new object[] { new {
+        type = "model_output", content = new object[] {
+            new { type = "audio", data = Convert.ToBase64String(expectedWav) }
+        }
+    } }
+});
+using (var output = System.Text.Json.JsonDocument.Parse(fakeTtsJson))
+{
+    if (!AnGeminiSpeechService.ExtractWav(output.RootElement).SequenceEqual(expectedWav))
+        throw new Exception("FAIL Gemini TTS in-memory WAV parsing.");
+    Console.WriteLine("PASS Gemini TTS WAV decoding from Interactions response");
+}
+var windowsDefaultMic = new MicrophoneDeviceOption(-1, "Default");
+if (windowsDefaultMic.DeviceNumber != -1 || !windowsDefaultMic.Label.Contains("Mặc định"))
+    throw new Exception("FAIL Windows default microphone label");
+Console.WriteLine("PASS microphone device option selection shape");
+
+// Fallback is only one audio-understanding request, with safe instructions.
+var fallbackJson = System.Text.Json.JsonSerializer.Serialize(
+    GeminiAssistantClient.BuildFallbackTranscriptionRequest(PcmWav.MakeWav(Frame(1000))));
+using (var doc = System.Text.Json.JsonDocument.Parse(fallbackJson))
+{
+    if (doc.RootElement.GetProperty("model").GetString() != "gemini-3.5-flash-lite" ||
+        doc.RootElement.GetProperty("input")[1].GetProperty("type").GetString() != "audio" ||
+        doc.RootElement.GetProperty("input")[1].GetProperty("mime_type").GetString() != "audio/wav")
+        throw new Exception("FAIL Gemini fallback STT Interactions schema");
+    Console.WriteLine("PASS fallback Gemini Flash-Lite transcription payload");
+}

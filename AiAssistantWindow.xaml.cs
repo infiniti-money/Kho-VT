@@ -45,6 +45,7 @@ public partial class AiAssistantWindow : Window
         OutOfStockCount.Text = metrics.OutOfStock.ToString("N0", CultureInfo.GetCultureInfo("vi-VN"));
         MovementCountText.Text = $"Giao dịch nhập/xuất 30 ngày: {metrics.MovementsMonth:N0} dòng có ngày và số lượng hợp lệ.";
         RefreshKeyStatus();
+        LoadMicrophones(true);
     }
 
     private void RefreshKeyStatus()
