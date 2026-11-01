@@ -85,7 +85,19 @@ void BuildWorkbook(bool missingFormula = false)
             else cells.Add(Blank(col + row));
         }
         foreach (string col in new[] { "E", "F", "H", "I", "J" })
-            cells.Add(missingFormula && row == 7 && col == "I" ? Blank(col + row) : Formula(col + row, row));
+        {
+            if (missingFormula && row == 7 && col == "I")
+                cells.Add(Blank(col + row));
+            else if (col == "I")
+                cells.Add(new XElement(m + "c", new XAttribute("r", "I" + row),
+                    row == 5
+                        ? new XElement(m + "f", new XAttribute("t", "shared"),
+                            new XAttribute("si", "0"), new XAttribute("ref", "I5:I965"),
+                            "IF(D5=\"\",\"\",H5+IF(C5=\"Nhập\",G5,-G5))")
+                        : new XElement(m + "f", new XAttribute("t", "shared"), new XAttribute("si", "0")),
+                    new XElement(m + "v", "2")));
+            else cells.Add(Formula(col + row, row));
+        }
         if (row == 7) cells.Add(Str("M7", "Ô trợ giúp, phải giữ"));
         data.Add(cells);
     }
@@ -198,6 +210,10 @@ try
         Check(Cell(tx, "I" + finalRow).Element(m + "f") is not null &&
               Cell(tx, "H" + finalRow).Element(m + "f") is not null,
             "extend calculated columns to final spare row");
+        Check((string?)Cell(tx, "I5").Element(m + "f")?.Attribute("ref") == "I5:I965" &&
+              (string?)Cell(tx, "I" + finalRow).Element(m + "f")?.Attribute("t") is null &&
+              Cell(tx, "I" + finalRow).Element(m + "f")!.Value.Contains("H" + finalRow),
+            "keep original shared formula group intact and use independent formulas for new rows");
         var table = Sheet(workbook, "xl/tables/table2.xml");
         Check((string?)table.Root?.Attribute("ref") == "A4:L" + finalRow,
             "extend tbl_NhapXuat7 including its table metadata");
