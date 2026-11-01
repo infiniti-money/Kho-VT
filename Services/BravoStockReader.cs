@@ -94,7 +94,7 @@ public static class BravoStockReader
     public static bool TrySignedNumber(IXLCell cell, out double value)
     {
         value = 0;
-        if (cell.TryGetValue<double>(out var number) && double.IsFinite(number))
+        if (cell.DataType == XLDataType.Number && cell.TryGetValue<double>(out var number) && double.IsFinite(number))
         {
             value = number;
             return true;
