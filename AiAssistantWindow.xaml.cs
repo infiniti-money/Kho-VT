@@ -23,6 +23,7 @@ public partial class AiAssistantWindow : Window
     public ObservableCollection<AiChatMessage> ChatMessages { get; } = [];
     // Open the existing human-reviewed replenishment form, never apply changes from AI.
     public Action? OpenReplenishment { get; set; }
+    public Action? BringToForeground { get; set; }
     public Action<AnCatalogEditService.Plan>? ReviewCatalogEdit { get; set; }
     public bool IsHandsFreeActive => _handsFreeEnabled;
     public bool KeepListeningWhenMinimized => _handsFreeEnabled &&
