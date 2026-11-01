@@ -1115,6 +1115,12 @@ public partial class MainWindow : Window
                 {
                     if (!catalog.TryGetValue(sku, out var item))
                         throw new InvalidDataException($"Không tìm thấy {sku} trong danh mục đối chiếu, từ chối ghi phiếu.");
+                    var cached = State.Products.FirstOrDefault(p =>
+                        p.Sku.Equals(sku, StringComparison.OrdinalIgnoreCase));
+                    if (cached is not null && Math.Abs(cached.TotalStock) > 0.0000001)
+                        throw new InvalidDataException(
+                            $"Mã {sku} có tồn cục bộ nhưng chưa có trong Danh mục Excel. " +
+                            "Hãy đối chiếu số dư trước khi nhập để không cộng tồn hai lần.");
                     additions.Add(new PrimaryWorkbookTransactionWriter.CatalogInput(
                         item.Sku, item.Name,
                         string.IsNullOrWhiteSpace(item.Unit) ? "Cái" : item.Unit));
@@ -1128,19 +1134,32 @@ public partial class MainWindow : Window
             // balance 0 and this receipt is applied exactly once below.
             foreach (var material in newItems)
             {
-                if (State.Products.Any(p => p.Sku.Equals(material.Sku, StringComparison.OrdinalIgnoreCase)))
-                    continue;
-                var product = new InventoryItem
+                var product = State.Products.FirstOrDefault(p =>
+                    p.Sku.Equals(material.Sku, StringComparison.OrdinalIgnoreCase));
+                if (product is null)
                 {
-                    Sku = material.Sku,
-                    Name = material.Name,
-                    Barcode = material.Sku,
-                    Unit = material.Unit,
-                    Category = "Vật tư khác",
-                    Active = true,
-                    WarehouseStocks = State.Warehouses.ToDictionary(warehouse => warehouse, _ => 0d)
-                };
-                State.Products.Add(product);
+                    product = new InventoryItem
+                    {
+                        Sku = material.Sku,
+                        Name = material.Name,
+                        Barcode = material.Sku,
+                        Unit = material.Unit,
+                        Category = "Vật tư khác",
+                        Active = true,
+                        WarehouseStocks = State.Warehouses.ToDictionary(warehouse => warehouse, _ => 0d)
+                    };
+                    State.Products.Add(product);
+                }
+                else
+                {
+                    // Existing local-only, zero-stock or inactive SKU: restore it
+                    // after successful atomic Excel catalog registration.
+                    product.Active = true;
+                    product.Name = material.Name;
+                    product.Unit = material.Unit;
+                    foreach (var warehouse in State.Warehouses)
+                        product.WarehouseStocks.TryAdd(warehouse, 0);
+                }
                 if (!State.Categories.Contains(product.Category, StringComparer.OrdinalIgnoreCase))
                     State.Categories.Add(product.Category);
                 if (!State.Units.Contains(product.Unit, StringComparer.OrdinalIgnoreCase))
