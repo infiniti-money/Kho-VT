@@ -1072,6 +1072,17 @@ public partial class MainWindow : Window
             return (false, null);
         }
 
+        // Before the first write after upgrading, explicitly adopt Excel's
+        // calculated stock. Otherwise cached HISA values may be out of date.
+        var expectedExcelHash = State.PrimarySyncFingerprint;
+        if (string.IsNullOrWhiteSpace(expectedExcelHash))
+        {
+            MessageBox.Show(this,
+                "Chưa đồng bộ tồn kho ban đầu với KHO.xlsx. Hãy mở Excel, tính lại, lưu " +
+                "và vào Hệ thống & dữ liệu → Đồng bộ từ Excel trước khi ghi phiếu.",
+                "Cần đồng bộ Excel lần đầu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return (false, null);
+        }
         var rows = draft.Lines.Select(line => new PrimaryWorkbookTransactionWriter.Input(
             draft.Date, draft.Type, line.Sku, line.Quantity,
             string.IsNullOrWhiteSpace(draft.Partner) ? draft.Operator : draft.Partner,
@@ -1080,7 +1091,11 @@ public partial class MainWindow : Window
         try
         {
             var result = await Task.Run(() =>
-                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows));
+                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows, expectedExcelHash));
+            // Store the hash of the actual staged workbook, not the previous
+            // Excel snapshot. The next write will detect any external save.
+            State.PrimarySyncFingerprint = result.WorkbookHash;
+            State.PrimaryExcelSyncedWriteUtc = File.GetLastWriteTimeUtc(path);
             ShowToast($"Đã ghi {result.RowCount} dòng Nhập/Xuất bắt đầu tại dòng {result.FirstRow}. " +
                 "File Excel gốc có bản sao lưu trước khi ghi.");
             return (true, result.FirstRow);
