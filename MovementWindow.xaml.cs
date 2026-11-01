@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using HisaWarehouse.Services;
 
 namespace HisaWarehouse;
 
@@ -59,10 +60,7 @@ public partial class MovementWindow : Window
             (string.Equals(p.Sku, code, StringComparison.OrdinalIgnoreCase) || string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase)));
         if (item is null)
         {
-            ScannerStatus.Text = $"Không tìm thấy SKU hoặc barcode: {code}";
-            ScannerStatus.Foreground = System.Windows.Media.Brushes.IndianRed;
-            ScannerBox.SelectAll();
-            return;
+            if (!TryResolveNewReceiptMaterial(code, out item)) return;
         }
         AddLine(item, 1);
         ScannerStatus.Text = $"Đã thêm {item.Sku} · {item.Name}";
@@ -73,11 +71,9 @@ public partial class MovementWindow : Window
 
     private void AddLine_Click(object sender, RoutedEventArgs e)
     {
-        if (ProductBox.SelectedItem is not InventoryItem item)
-        {
-            this.NotifyInline("Chọn vật tư cần thêm vào phiếu.");
+        InventoryItem? item = ProductBox.SelectedItem as InventoryItem;
+        if (item is null && !TryResolveNewReceiptMaterial(ProductBox.Text.Trim(), out item))
             return;
-        }
         if (!TryReadQuantity(QuantityBox.Text, out var qty) || qty <= 0)
         {
             this.NotifyInline("Số lượng phải lớn hơn 0.");
@@ -87,6 +83,50 @@ public partial class MovementWindow : Window
         ProductBox.SelectedItem = null;
         ProductBox.Text = "";
         QuantityBox.Text = "1";
+    }
+
+    private bool TryResolveNewReceiptMaterial(string code, out InventoryItem? item)
+    {
+        item = null;
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            this.NotifyInline("Nhập hoặc quét mã SKU cần tìm.");
+            return false;
+        }
+        if (SelectedType != "Nhập")
+        {
+            this.NotifyInline($"Mã {code} không có trong kho. Chỉ cho phép tự thêm mã từ file đối chiếu khi nhập hàng.");
+            return false;
+        }
+        try
+        {
+            var path = ReferenceMaterialLookup.Resolve(_state.ReferencePath, _state.PrimaryExcelPath);
+            var reference = ReferenceMaterialLookup.Read(path);
+            if (!reference.TryGetValue(code.Trim(), out var found))
+            {
+                this.NotifyInline($"Mã {code} không có trong file đối chiếu. Không tạo danh mục tự động.");
+                return false;
+            }
+            // This is a staged catalog row: not persisted into HISA or KHO.xlsx
+            // until the entire receipt is safely written and acknowledged.
+            item = new InventoryItem
+            {
+                Sku = found.Sku.Trim(),
+                Barcode = found.Sku.Trim(),
+                Name = found.Name.Trim(),
+                Unit = string.IsNullOrWhiteSpace(found.Unit) ? "Cái" : found.Unit.Trim(),
+                Category = "Vật tư khác",
+                WarehouseStocks = _state.Warehouses.ToDictionary(x => x, _ => 0d)
+            };
+            ScannerStatus.Text = $"Đã đối chiếu {item.Sku} · {item.Name}. Mã sẽ được thêm vào Danh mục khi lưu phiếu.";
+            ScannerStatus.Foreground = System.Windows.Media.Brushes.SeaGreen;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            this.NotifyInline("Không thể đối chiếu mã mới: " + ex.Message);
+            return false;
+        }
     }
 
     private void AddLine(InventoryItem item, double quantity)
