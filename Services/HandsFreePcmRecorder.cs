@@ -9,6 +9,10 @@ namespace HisaWarehouse.Services;
 public sealed class HandsFreePcmRecorder : IDisposable
 {
     private readonly PcmVoiceActivityDetector _vad = new();
+    private readonly int _deviceNumber;
+    public HandsFreePcmRecorder(int deviceNumber = -1) => _deviceNumber = deviceNumber;
+    /// <summary>Micro signal level 0–100 in RAM; does not send or store audio.</summary>
+    public event Action<int>? InputLevelChanged;
     private WaveInEvent? _source;
     private int _stopping;
     private bool _aborted;
@@ -21,11 +25,11 @@ public sealed class HandsFreePcmRecorder : IDisposable
     {
         if (_source is not null) throw new InvalidOperationException("Micro đang được sử dụng.");
         _aborted = false;
+        _stopping = 0;
+        MicrophoneDevices.Validate(_deviceNumber);
         _source = new WaveInEvent
         {
-            // -1 is WinMM WAVE_MAPPER: follow the Windows default input device.
-            // Device 0 may be an inactive webcam or a disconnected headset.
-            DeviceNumber = -1,
+            DeviceNumber = _deviceNumber,
             WaveFormat = new WaveFormat(PcmVoiceActivityDetector.SampleRate, 16, 1),
             BufferMilliseconds = PcmVoiceActivityDetector.FrameMilliseconds,
             NumberOfBuffers = 4
@@ -44,6 +48,19 @@ public sealed class HandsFreePcmRecorder : IDisposable
     private void CaptureData(object? sender, WaveInEventArgs args)
     {
         if (_aborted || Volatile.Read(ref _stopping) != 0) return;
+        var samples = args.BytesRecorded / 2;
+        if (samples > 0)
+        {
+            double squares = 0;
+            for (var i = 0; i < args.BytesRecorded - 1; i += 2)
+            {
+                short amplitude = System.Buffers.Binary.BinaryPrimitives.ReadInt16LittleEndian(
+                    args.Buffer.AsSpan(i, 2));
+                squares += (double)amplitude * amplitude;
+            }
+            var rms = Math.Sqrt(squares / samples);
+            InputLevelChanged?.Invoke((int)Math.Clamp(rms * 100.0 / 5500.0, 0, 100));
+        }
         if (!_vad.Push(args.Buffer.AsSpan(0, args.BytesRecorded))) return;
         _completedAudio = _vad.TakePcm();
         if (Interlocked.Exchange(ref _stopping, 1) == 0)
