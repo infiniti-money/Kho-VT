@@ -436,9 +436,13 @@ public partial class MainWindow : Window
         // Read-only pages are replaced immediately. Editors require a single
         // confirmation so users cannot accidentally lose uncommitted input.
         var editor = _currentEmbeddedPage.Source;
-        var mayHaveChanges = editor is MovementWindow or ItemEditorWindow
-            or MaterialRequestEditorWindow or PrintTemplateWindow or CatalogsWindow
-            or ManageUnitsWindow or ReplenishmentWindow;
+        // Only ask when there really are unsaved business inputs.
+        // A newly opened, untouched form or read-only page switches directly.
+        var mayHaveChanges = editor is IWorkspaceDirtyPage dirty
+            ? dirty.HasUnsavedChanges
+            : editor is MovementWindow or ItemEditorWindow or MaterialRequestEditorWindow
+                or PrintTemplateWindow or CatalogsWindow or ManageUnitsWindow
+                or ReplenishmentWindow;
         void Switch()
         {
             // Unwind the explicit request-editor child as well as its parent.
