@@ -670,7 +670,11 @@ public partial class MainWindow : Window
     private void NavReports_Click(object sender, RoutedEventArgs e) =>
         RequestRootNavigation(() => NavigateTo("reports"));
     private void NavSoftwareInfo_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(() => NavigateTo("settings"));
+        RequestRootNavigation(() =>
+        {
+            var page = new SoftwareInfoWindow();
+            ShowEmbeddedPage(page, "Thông tin phần mềm", "Phiên bản HISA, điều khoản và hướng dẫn sử dụng");
+        });
 
     private void OpenReplenishment()
     {
