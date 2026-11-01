@@ -105,7 +105,7 @@ public partial class ReferenceInventoryWindow : Window
         var differences = rows.Count(row => row.Status == "Chênh lệch");
         var missing = rows.Count(row => row.Status == "Không có trong tệp đối chiếu");
         var outside = rows.Count(row => row.Status == "Mã ngoài file chính");
-        SummaryText.Text = $"Tổng {rows.Count:N0} mã · khớp {matches:N0} · lệch {differences:N0} · thiếu {missing:N0} · ngoài file chính {outside:N0}";
+        SummaryText.Text = $"Tổng {rows.Count:N0} mã · khớp {matches:N0} · lệch {differences:N0} · thiếu Bravo {missing:N0} · chỉ có Bravo {outside:N0} · tồn âm Bravo {rows.Count(row => row.ActualStock < 0):N0}";
     }
 
     private void SelectDifferences_Click(object sender, RoutedEventArgs e)
