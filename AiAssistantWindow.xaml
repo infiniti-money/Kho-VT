@@ -80,6 +80,8 @@
                             <StackPanel Orientation="Horizontal" Margin="0,9,0,13">
                                 <Button Content="Lưu khóa" Style="{StaticResource AiAction}" Click="SaveKey_Click" Margin="0,0,7,0"/>
                                 <Button Content="Xóa khóa" Style="{StaticResource AiSecondary}" Click="RemoveKey_Click"/>
+                                <Button x:Name="TestGeminiButton" Content="Kiểm tra API" Style="{StaticResource AiSecondary}"
+                                        Click="TestGemini_Click" Margin="7,0,0,0"/>
                             </StackPanel>
                             <TextBlock Text="Khóa mã hóa bằng Windows DPAPI, lưu riêng trong hồ sơ người dùng. Không lưu vào Excel hay gửi lên GitHub."
                                        Foreground="#718499" FontSize="10.5" TextWrapping="Wrap"/>
@@ -169,6 +171,27 @@
                     <Border Grid.Row="4" BorderBrush="#DCE8F0" BorderThickness="0,1,0,0"
                             Background="#F1F9FC" Padding="14,10">
                         <StackPanel>
+                            <Grid Margin="0,0,0,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Micro đầu vào" VerticalAlignment="Center" Foreground="#365F78"
+                                           FontSize="11" Margin="0,0,8,0"/>
+                                <ComboBox x:Name="InputMicrophoneBox" Grid.Column="1"
+                                          DisplayMemberPath="Label" SelectionChanged="MicrophoneSelection_Changed"
+                                          Height="31" MinWidth="200" ToolTip="Chọn micro USB, tai nghe hoặc micro laptop."/>
+                                <Button Grid.Column="2" Content="Làm mới mic" Click="RefreshMicrophones_Click"
+                                        Margin="8,0,0,0" Padding="10,5"/>
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Tín hiệu mic" VerticalAlignment="Center"
+                                           FontSize="10" Foreground="#53788E" Margin="0,0,9,0"/>
+                                <ProgressBar x:Name="MicrophoneLevelBar" Height="9" Width="170" Minimum="0" Maximum="100"/>
+                                <TextBlock Text="(di chuyển khi đang nghe)" FontSize="10"
+                                           Foreground="#53788E" Margin="9,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="HandsFreeButton" Content="🎙 Bật rảnh tay" Click="HandsFree_Click"
                                         Style="{StaticResource AiAction}" Margin="0,0,9,0"/>
