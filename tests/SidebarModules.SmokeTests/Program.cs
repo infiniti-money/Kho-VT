@@ -111,4 +111,36 @@ if (!HisaWarehouse.Services.MaterialCodeFilter.Matches(
     HisaWarehouse.Services.MaterialCodeFilter.Parse(""), "VT001"))
     throw new InvalidOperationException("Empty multi-SKU filter should show all products.");
 
-Console.WriteLine("PASS: core sidebar, An second, unchanged dashboard shell, 8 shortcuts, inline labels and exact multi-SKU filters.");
+foreach (var click in new[] { "QuickReceipt_Click", "QuickShipment_Click" })
+    if (dashboardButtons.Count(el => (string?)el.Attribute("Click") == click) != 1)
+        throw new InvalidOperationException("Homepage missing independent quick receipt/shipment action: " + click);
+var catalog = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "CatalogsWindow.xaml"));
+if (!catalog.Descendants().Any(el => el.Name.LocalName == "TabItem" &&
+    (string?)el.Attribute("Header") == "Phân loại hàng hóa") ||
+    catalog.Descendants().Count(el => Name(el) == "CategoryInput") != 1 ||
+    catalog.Descendants().Count(el => Name(el) == "CategoryList") != 1)
+    throw new InvalidOperationException("Editable product classification catalog is not available.");
+if (!catalog.Descendants().Any(el => el.Name.LocalName == "TabItem" &&
+    (string?)el.Attribute("Header") == "Người nhận / gửi"))
+    throw new InvalidOperationException("Recipient/sender catalog label is incorrect.");
+var movement = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "MovementWindow.xaml"));
+if (!movement.Descendants().Any(el => Name(el) == "PartnerLabel" &&
+    (string?)el.Attribute("Text") == "NGƯỜI NHẬN / GỬI"))
+    throw new InvalidOperationException("Receipt/shipment partner label has not been updated.");
+var updaterSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "Services", "WarehouseUpdateService.cs"));
+if (!updaterSource.Contains("requiresElevation ? \"runas\" : \"\"", StringComparison.Ordinal))
+    throw new InvalidOperationException("One-click updater should request Windows UAC when necessary.");
+var checkStart = cs.IndexOf("private async void CheckUpdate_Click", StringComparison.Ordinal);
+var installStart = cs.IndexOf("private async Task InstallDownloadedUpdateAsync", StringComparison.Ordinal);
+if (checkStart < 0 || installStart <= checkStart)
+    throw new InvalidOperationException("One-click updater handler missing.");
+var checkBody = cs[checkStart..installStart];
+if (checkBody.Contains("ConfirmInApp(", StringComparison.Ordinal) ||
+    !checkBody.Contains("await InstallDownloadedUpdateAsync(package)", StringComparison.Ordinal))
+    throw new InvalidOperationException("Update button still needs an extra approval click.");
+var receiptCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "MovementWindow.xaml.cs"));
+if (!receiptCode.Contains("TryResolveNewReceiptMaterial", StringComparison.Ordinal) ||
+    !receiptCode.Contains("ReferenceMaterialLookup.Read", StringComparison.Ordinal))
+    throw new InvalidOperationException("Unknown SKU is not searched in the reference material catalog.");
+Console.WriteLine("PASS: 11 flat functions, An second, quick receipt/shipment, product categories, sender/recipient, one-click UAC updater, reference SKU lookup, inline labels and multi-SKU reports.");
