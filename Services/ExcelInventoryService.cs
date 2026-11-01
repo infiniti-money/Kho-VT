@@ -173,45 +173,21 @@ public static class ExcelInventoryService
         return result;
     }
 
-    public static Dictionary<string, ReferenceStockValue> ReadReferenceStock(string path)
-    {
-        // Read the saved file without locking it against Excel's editor.
-        using var snapshot = ExcelReadSnapshot.Capture(path);
-        using var workbook = new XLWorkbook(snapshot);
-        foreach (var sheet in workbook.Worksheets)
-        {
-            var first = sheet.FirstRowUsed()?.RowNumber() ?? 0;
-            var last = sheet.LastRowUsed()?.RowNumber() ?? first;
-            if (first == 0) continue;
-            for (var headerRow = first; headerRow <= Math.Min(last, first + 25); headerRow++)
+    /// <summary>
+    /// Always read Bravo using the confirmed source columns A/B/C/L.
+    /// Quantity includes zero and negative balances; reference is read only.
+    /// </summary>
+    public static Dictionary<string, ReferenceStockValue> ReadReferenceStock(string path) =>
+        BravoStockReader.Read(path).Values.ToDictionary(
+            row => row.Sku,
+            row => new ReferenceStockValue
             {
-                var lastColumn = sheet.Row(headerRow).LastCellUsed()?.Address.ColumnNumber ?? 0;
-                var headings = Enumerable.Range(1, lastColumn).Select(column => sheet.Cell(headerRow, column).GetString().Trim()).ToList();
-                int FindColumn(params string[] options) => headings.Select((name, index) => (name, index))
-                    .Where(pair => options.Any(option => pair.name.Equals(option, StringComparison.OrdinalIgnoreCase)))
-                    .Select(pair => pair.index + 1).FirstOrDefault();
-                var skuColumn = FindColumn("Mã SKU", "Mã hàng", "SKU", "Mã sản phẩm", "Mã vật tư");
-                var quantityColumn = FindColumn("Tồn thực tế", "Số lượng thực tế", "Tồn hiện tại", "Tồn cuối", "Số lượng tồn", "Tồn", "Số lượng", "SL thực tế", "SL");
-                if (skuColumn == 0 || quantityColumn == 0) continue;
-                var nameColumn = FindColumn("Tên vật tư", "Tên hàng", "Tên sản phẩm");
-                var unitColumn = FindColumn("Đơn vị tính", "Đơn vị", "ĐVT");
-                var values = new Dictionary<string, ReferenceStockValue>(StringComparer.OrdinalIgnoreCase);
-                for (var row = headerRow + 1; row <= last; row++)
-                {
-                    var sku = sheet.Cell(row, skuColumn).GetString().Trim();
-                    if (sku.Length == 0) continue;
-                    var quantity = ReadOptionalNumber(sheet, row, quantityColumn, row, "Tồn thực tế", []);
-                    if (!quantity.HasValue) continue;
-                    var name = nameColumn > 0 ? sheet.Cell(row, nameColumn).GetString().Trim() : "";
-                    var unit = unitColumn > 0 ? sheet.Cell(row, unitColumn).GetString().Trim() : "";
-                    if (values.TryGetValue(sku, out var prior)) quantity += prior.Quantity;
-                    values[sku] = new ReferenceStockValue { Sku = sku, Name = name, Unit = unit, Quantity = quantity.Value };
-                }
-                if (values.Count > 0) return values;
-            }
-        }
-        throw new InvalidDataException("Không tìm thấy bảng tồn thực tế. Cần có cột mã SKU/Mã hàng và cột Tồn thực tế/Tồn hiện tại trong tệp tham chiếu.");
-    }
+                Sku = row.Sku,
+                Name = row.Name,
+                Unit = row.Unit,
+                Quantity = row.Quantity
+            },
+            StringComparer.OrdinalIgnoreCase);
 
     public static void ExportTransactionReport(string path, IEnumerable<InventoryTransaction> transactions, string title, IReadOnlyDictionary<string, string>? departments = null)
     {
