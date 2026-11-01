@@ -6,5 +6,10 @@
   <ItemGroup>
     <Compile Include="../../Services/PcmVoiceActivityDetector.cs" Link="PcmVoiceActivityDetector.cs" />
     <Compile Include="../../Services/GeminiAssistantClient.cs" Link="GeminiAssistantClient.cs" />
+    <Compile Include="../../Services/AnGeminiSpeechService.cs" Link="AnGeminiSpeechService.cs" />
+    <Compile Include="../../Services/MicrophoneDevices.cs" Link="MicrophoneDevices.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 </Project>
