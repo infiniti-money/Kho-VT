@@ -436,9 +436,13 @@ public partial class MainWindow : Window
         // Read-only pages are replaced immediately. Editors require a single
         // confirmation so users cannot accidentally lose uncommitted input.
         var editor = _currentEmbeddedPage.Source;
-        var mayHaveChanges = editor is MovementWindow or ItemEditorWindow
-            or MaterialRequestEditorWindow or PrintTemplateWindow or CatalogsWindow
-            or ManageUnitsWindow or ReplenishmentWindow;
+        // Only ask when there really are unsaved business inputs.
+        // A newly opened, untouched form or read-only page switches directly.
+        var mayHaveChanges = editor is IWorkspaceDirtyPage dirty
+            ? dirty.HasUnsavedChanges
+            : editor is MovementWindow or ItemEditorWindow or MaterialRequestEditorWindow
+                or PrintTemplateWindow or CatalogsWindow or ManageUnitsWindow
+                or ReplenishmentWindow;
         void Switch()
         {
             // Unwind the explicit request-editor child as well as its parent.
@@ -448,7 +452,7 @@ public partial class MainWindow : Window
             open();
         }
         if (mayHaveChanges)
-            ConfirmInApp("Trang hiện tại có thể có dữ liệu chưa lưu. Chuyển trang và bỏ các thay đổi chưa lưu?",
+            ConfirmInApp("Bạn đã thay đổi dữ liệu nhưng chưa lưu. Bỏ các thay đổi này để chuyển trang?",
                 accepted => { if (accepted) Switch(); }, "Chuyển trang", "Ở lại");
         else Switch();
     }

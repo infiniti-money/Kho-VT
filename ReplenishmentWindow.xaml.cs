@@ -4,10 +4,36 @@ using HisaWarehouse.Services;
 
 namespace HisaWarehouse;
 
-public partial class ReplenishmentWindow : Window
+public partial class ReplenishmentWindow : Window, IWorkspaceDirtyPage
 {
     private readonly InventoryState _state;
     private List<ReplenishmentSuggestion> _suggestions = [];
+    private readonly WorkspaceFormSnapshot _navigationSnapshot;
+
+    // Switching the viewed warehouse only is not a pending edit. Actual
+    // proposed line selections/quantities and entered request fields are.
+    public bool HasUnsavedChanges
+    {
+        get
+        {
+            if (!SuggestionsGrid.CommitEdit(DataGridEditingUnit.Cell, true) ||
+                !SuggestionsGrid.CommitEdit(DataGridEditingUnit.Row, true)) return true;
+            return _navigationSnapshot.HasChanges || HasEditedSuggestions();
+        }
+    }
+
+    private string CaptureForm() => WorkspaceFormSnapshot.Serialize(
+        DepartmentBox.Text, RequesterBox.Text, NoteBox.Text, NeededByBox.SelectedDate);
+
+    private bool HasEditedSuggestions()
+    {
+        if (WarehouseBox.SelectedItem is not string warehouse) return false;
+        var defaults = ReplenishmentService.Generate(_state, warehouse)
+            .ToDictionary(item => item.Sku, StringComparer.OrdinalIgnoreCase);
+        return _suggestions.Any(item => !defaults.TryGetValue(item.Sku, out var original) ||
+            item.Selected != original.Selected ||
+            Math.Abs(item.RequestedQuantity - original.RequestedQuantity) > 0.000001);
+    }
     public MaterialRequest? ProposedRequest { get; private set; }
 
     public ReplenishmentWindow(InventoryState state)
@@ -20,6 +46,7 @@ public partial class ReplenishmentWindow : Window
         WarehouseBox.SelectedItem = state.Warehouses.FirstOrDefault(warehouse =>
             warehouse.Equals("Kho tổng", StringComparison.OrdinalIgnoreCase)) ?? state.Warehouses.FirstOrDefault();
         RefreshSuggestions();
+        _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
     }
 
     private void Warehouse_Changed(object sender, SelectionChangedEventArgs e) => RefreshSuggestions();
