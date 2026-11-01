@@ -399,6 +399,62 @@ try
         Check(true, "reject backup when shared-string indexes match but decoded SKUs differ");
     }
 
+    // An can only edit two non-formula catalog input columns after an exact
+    // user command and an explicit preview/approval. Check isolated workbook
+    // modification, backup, stale hash rejection and untouched other sheet.
+    File.Delete(file);
+    BuildWorkbook();
+    var catalogBeforeEdit = SHA256.HashData(File.ReadAllBytes(file));
+    Check(AnCatalogEditService.TryParseCommand(
+        "An đổi tên vật tư mã VT0001 thành Vật tư nhập từ An", out var rename) &&
+        rename is not null && rename.Target == AnCatalogEditService.Field.Name &&
+        rename.Sku == "VT0001", "An parses exact Vietnamese name edit with SKU");
+    var namePlan = AnCatalogEditService.Prepare(file,
+        PrimaryWorkbookReconciler.Fingerprint(file), rename!);
+    Check(namePlan.Row == 4 && namePlan.OldValue == "Vật tư thử" &&
+          namePlan.NewValue == "Vật tư nhập từ An",
+        "An previews exact catalog cell, before and after values");
+    var renamed = AnCatalogEditService.Apply(namePlan);
+    Check(File.Exists(renamed.BackupPath) &&
+          SHA256.HashData(File.ReadAllBytes(renamed.BackupPath)).SequenceEqual(catalogBeforeEdit),
+        "An preserves the exact workbook before an approved edit");
+    using (var inspected = ZipFile.OpenRead(file))
+    {
+        var sheet = Sheet(inspected, "xl/worksheets/sheet1.xml");
+        Check(Cell(sheet, "B4").Element(m + "f") is null &&
+              string.Concat(Cell(sheet, "B4").Descendants(m + "t").Select(t => t.Value)) ==
+              "Vật tư nhập từ An" &&
+              Cell(sheet, "F4").Element(m + "f") is not null,
+            "An modifies only catalog name and preserves the stock formula");
+        var foreign = Sheet(inspected, "xl/worksheets/sheet3.xml");
+        Check(foreign.Root?.Element(m + "dimension")?.Attribute("ref")?.Value == "A1:Q965",
+            "An does not change unrelated worksheet ranges");
+    }
+    try
+    {
+        AnCatalogEditService.Apply(namePlan);
+        throw new Exception("An accepted a previously applied preview.");
+    }
+    catch (IOException)
+    {
+        Check(true, "An rejects a stale edit preview after a workbook change");
+    }
+    Check(AnCatalogEditService.TryParseCommand(
+        "Sửa tồn tối thiểu mã VT0001 thành 7", out var minimum) &&
+        minimum is not null && minimum.Target == AnCatalogEditService.Field.Minimum,
+        "An recognizes a minimum-stock adjustment request");
+    var minimumPlan = AnCatalogEditService.Prepare(file, renamed.WorkbookHash, minimum!);
+    AnCatalogEditService.Apply(minimumPlan);
+    using (var inspected = ZipFile.OpenRead(file))
+    {
+        var sheet = Sheet(inspected, "xl/worksheets/sheet1.xml");
+        Check(Text(Cell(sheet, "E4")) == "7" &&
+              Cell(sheet, "F4").Element(m + "f") is not null,
+            "An edits minimum only and preserves calculated inventory");
+    }
+    Check(!AnCatalogEditService.TryParseCommand("Sửa công thức F4 thành 0", out _),
+        "An never accepts a command to overwrite a formula");
+
     Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
 }
 finally
