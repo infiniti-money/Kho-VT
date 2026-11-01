@@ -17,8 +17,16 @@ public partial class MainWindow
     private void OnAnWindowStateChanged(object? sender, EventArgs e)
     {
         if (WindowState != System.Windows.WindowState.Minimized ||
-            _currentEmbeddedPage?.Source is not AiAssistantWindow an ||
-            !an.KeepListeningWhenMinimized) return;
+            _currentEmbeddedPage?.Source is not AiAssistantWindow an) return;
+
+        // Background mic is opt-in. A normal minimize cannot silently leave
+        // the voice session recording without the explicit tray toggle.
+        if (!an.KeepListeningWhenMinimized)
+        {
+            if (an.IsHandsFreeActive)
+                an.EndHandsFreeAndCancel();
+            return;
+        }
 
         try
         {
