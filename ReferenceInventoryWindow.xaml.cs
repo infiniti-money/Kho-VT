@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ClosedXML.Excel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -106,6 +107,57 @@ public partial class ReferenceInventoryWindow : Window
         var missing = rows.Count(row => row.Status == "Không có trong tệp đối chiếu");
         var outside = rows.Count(row => row.Status == "Mã ngoài file chính");
         SummaryText.Text = $"Tổng {rows.Count:N0} mã · khớp {matches:N0} · lệch {differences:N0} · thiếu Bravo {missing:N0} · chỉ có Bravo {outside:N0} · tồn âm Bravo {rows.Count(row => row.ActualStock < 0):N0}";
+    }
+
+    private void ExportBravoComparison_Click(object sender, RoutedEventArgs e)
+    {
+        var rows = (ComparisonGrid.ItemsSource as IEnumerable<ReferenceComparisonRow>)?.ToList() ?? [];
+        if (rows.Count == 0)
+        {
+            this.NotifyInline("Chưa có dòng đối chiếu để xuất.");
+            return;
+        }
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Xuất kết quả đối chiếu tồn Bravo với KHO.xlsx",
+            Filter = "Sổ Excel (*.xlsx)|*.xlsx",
+            FileName = "Doi-chieu-Bravo-" + DateTime.Today.ToString("yyyyMMdd") + ".xlsx"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            using var book = new XLWorkbook();
+            var sheet = book.Worksheets.Add("DoiChieuBravo");
+            var headers = new[] { "Mã vật tư", "Tên vật tư", "Đơn vị tính",
+                "Tồn KHO.xlsx", "Tồn Bravo (cột L)", "Chênh lệch Bravo - KHO", "Trạng thái" };
+            for (var c = 0; c < headers.Length; c++)
+                sheet.Cell(1, c + 1).Value = headers[c];
+            var number = 2;
+            foreach (var row in rows)
+            {
+                sheet.Cell(number, 1).Value = row.Sku;
+                sheet.Cell(number, 2).Value = row.Name;
+                sheet.Cell(number, 3).Value = row.Unit;
+                if (row.AppStock.HasValue) sheet.Cell(number, 4).Value = row.AppStock.Value;
+                if (row.ActualStock.HasValue) sheet.Cell(number, 5).Value = row.ActualStock.Value;
+                if (row.Difference.HasValue) sheet.Cell(number, 6).Value = row.Difference.Value;
+                sheet.Cell(number, 7).Value = row.Status;
+                if (row.ActualStock < 0)
+                    sheet.Cell(number, 5).Style.Font.FontColor = XLColor.DarkRed;
+                number++;
+            }
+            sheet.Range(1, 1, 1, 7).Style.Font.Bold = true;
+            sheet.Columns(4, 6).Style.NumberFormat.Format = "#,##0.##;-#,##0.##;0";
+            sheet.SheetView.FreezeRows(1);
+            sheet.Range(1, 1, Math.Max(2, number - 1), 7).SetAutoFilter();
+            sheet.Columns(1, 7).AdjustToContents();
+            book.SaveAs(dialog.FileName);
+            this.NotifyInline("Đã xuất báo cáo đối chiếu. Không thay đổi file KHO.xlsx hoặc Bravo.");
+        }
+        catch (Exception ex)
+        {
+            this.NotifyInline("Không xuất được báo cáo đối chiếu: " + ex.Message);
+        }
     }
 
     private void SelectDifferences_Click(object sender, RoutedEventArgs e)
