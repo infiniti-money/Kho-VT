@@ -17,6 +17,8 @@ public static class EmbeddedWindowNavigation
         // Stop mic and cancel Internet requests before detaching the AI content.
         if (window is AiAssistantWindow ai)
             ai.EndHandsFreeAndCancel();
+        if (window is ExcelPdfPreviewWindow pdf)
+            pdf.ReleaseTemporaryFiles();
         if (window.Tag is Action<bool> completion)
         {
             window.Tag = null;
