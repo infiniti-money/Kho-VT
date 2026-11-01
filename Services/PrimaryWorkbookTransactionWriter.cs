@@ -91,6 +91,7 @@ public static class PrimaryWorkbookTransactionWriter
                 calc.SetAttributeValue("forceFullCalc", "1");
                 var sheetData = document.Descendants(M + "sheetData").Single();
                 var currentLast = PrimaryWorkbookTableExpander.LastRow(document);
+                PrimaryWorkbookTableExpander.VerifyTableBoundary(originalZip, currentLast);
                 var rows = sheetData.Elements(M + "row")
                     .ToDictionary(x => (int?)x.Attribute("r") ?? 0);
                 var sharedStrings = ReadStrings(originalZip);
