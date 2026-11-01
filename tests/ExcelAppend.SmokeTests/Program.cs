@@ -139,6 +139,32 @@ string Text(XElement cell) =>
 try
 {
     BuildWorkbook();
+    var verifiedBackup = Path.Combine(scratch, "KHO-verified.bak");
+    File.Copy(file, verifiedBackup);
+
+    // Two successive inbound reconciliations must not replay historical rows
+    // or add their quantity twice to the Excel-computed stock total.
+    var localState = new HisaWarehouse.InventoryState
+    {
+        Warehouses = ["Kho tổng"],
+        Products = new System.Collections.ObjectModel.ObservableCollection<HisaWarehouse.InventoryItem>
+        {
+            new() { Sku = "VT0001", Name = "Vật tư cũ", Unit = "Cái",
+                WarehouseStocks = new Dictionary<string, double> { ["Kho tổng"] = 10 } },
+            new() { Sku = "VT0002", Name = "Vật tư thử", Unit = "Cái",
+                WarehouseStocks = new Dictionary<string, double> { ["Kho tổng"] = 2 } }
+        }
+    };
+    var proposed = PrimaryWorkbookReconciler.Prepare(file, localState);
+    PrimaryWorkbookReconciler.Apply(proposed, localState);
+    Check(localState.Products.Single(i => i.Sku == "VT0001").TotalStock == 12,
+        "adopt Excel-computed stock, never replay historical transaction quantities");
+    var synced = PrimaryWorkbookReconciler.Prepare(file, localState);
+    PrimaryWorkbookReconciler.Apply(synced, localState);
+    Check(localState.Products.Single(i => i.Sku == "VT0001").TotalStock == 12 &&
+          localState.Transactions.Count(t => t.SourceRow == 5) == 1,
+        "resynchronizing the same saved Excel does not double count or duplicate history");
+
     byte[] original;
     using (var z = ZipFile.OpenRead(file))
     {
@@ -252,6 +278,25 @@ try
         Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(missingBefore),
             "missing Excel formula causes fail-closed without touching source");
     }
+
+    // Restoration requires a verified donor, preserves every other sheet,
+    // and forces Excel recalculation without replacing the original workbook.
+    var plan = PrimaryFormulaRecovery.Inspect(file, verifiedBackup);
+    Check(plan.Missing.Count == 1 && plan.Missing[0].Sheet == "Nhập Xuất" &&
+          plan.Missing[0].Address == "I7",
+        "identify only the deleted protected formula before showing confirmation");
+    var recoveredFrom = PrimaryFormulaRecovery.Restore(plan);
+    using (var restored = ZipFile.OpenRead(file))
+    {
+        Check(Cell(Sheet(restored, "xl/worksheets/sheet2.xml"), "I7").Element(m + "f") is not null,
+            "restore only I7 formula from verified backup");
+        using var untouched = restored.GetEntry("xl/worksheets/sheet3.xml")!.Open();
+        Check(SHA256.HashData(untouched).SequenceEqual(original),
+            "unrelated worksheet is byte-exact after formula restore");
+    }
+    Check(File.Exists(recoveredFrom) &&
+          PrimaryWorkbookInspector.Inspect(file).MissingProtectedFormulas == 0,
+        "restore writes rollback backup and removes missing formula condition");
 
     Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
 }
