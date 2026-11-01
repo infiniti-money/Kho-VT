@@ -1010,8 +1010,9 @@ public partial class MainWindow : Window
         Interlocked.Increment(ref _activeExcelCommits);
         try
         {
-            if (!await TryWriteMovementToExcelAsync(draft, docNo)) return;
-            ApplyMovement(draft, docNo);
+            var excelWrite = await TryWriteMovementToExcelAsync(draft, docNo);
+            if (!excelWrite.Success) return;
+            ApplyMovement(draft, docNo, excelWrite.FirstRow);
             if (!await PersistAsync(false))
             {
                 MessageBox.Show(this,
@@ -1025,20 +1026,20 @@ public partial class MainWindow : Window
         finally { Interlocked.Decrement(ref _activeExcelCommits); }
     }
 
-    private async Task<bool> TryWriteMovementToExcelAsync(MovementDraft draft, string docNo)
+    private async Task<(bool Success, int? FirstRow)> TryWriteMovementToExcelAsync(MovementDraft draft, string docNo)
     {
         // The source workbook is a single logical stock ledger. A transfer between
         // internal HISA warehouses has no Nhập/Xuất equivalent and no net change.
         if (draft.Type == "Điều chuyển")
         {
             ShowToast("Phiếu điều chuyển nội bộ không ghi vào bảng Nhập Xuất của KHO.xlsx.");
-            return true;
+            return (true, null);
         }
         if (draft.Type is not ("Nhập" or "Xuất"))
         {
             MessageBox.Show(this, "Loại phiếu không hợp lệ. Không ghi Excel.",
                 "Nhập/Xuất kho", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            return (false, null);
         }
 
         var path = State.PrimaryExcelPath?.Trim();
@@ -1048,7 +1049,7 @@ public partial class MainWindow : Window
                 "Chưa chọn file KHO.xlsx chính. Vào Dữ liệu & phần mềm, chọn file chính trước khi lập phiếu. " +
                 "Phiếu và tồn kho chưa được ghi để tránh chênh lệch với Excel.",
                 "Chưa chọn file kho chính", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            return (false, null);
         }
 
         var rows = draft.Lines.Select(line => new PrimaryWorkbookTransactionWriter.Input(
@@ -1062,7 +1063,7 @@ public partial class MainWindow : Window
                 PrimaryWorkbookTransactionWriter.Append(path, docNo, rows));
             ShowToast($"Đã ghi {result.RowCount} dòng Nhập/Xuất bắt đầu tại dòng {result.FirstRow}. " +
                 "File Excel gốc có bản sao lưu trước khi ghi.");
-            return true;
+            return (true, result.FirstRow);
         }
         catch (Exception ex)
         {
@@ -1071,7 +1072,7 @@ public partial class MainWindow : Window
                 "\n\nHISA KHÔNG cập nhật số dư hoặc nhật ký giao dịch cho phiếu này. " +
                 "Hãy lưu và đóng Excel, kiểm tra công thức và vị trí trống, rồi thử lại.",
                 "Bảo vệ KHO.xlsx", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return false;
+            return (false, null);
         }
         finally
         {
@@ -1105,7 +1106,7 @@ public partial class MainWindow : Window
         Lines = draft.Lines.Select(line => new MovementLine { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList()
     };
 
-    private List<InventoryTransaction> ApplyMovement(MovementDraft draft, string docNo)
+    private List<InventoryTransaction> ApplyMovement(MovementDraft draft, string docNo, int? excelFirstRow = null)
     {
         var records = new List<InventoryTransaction>();
         foreach (var line in draft.Lines)
@@ -1137,6 +1138,9 @@ public partial class MainWindow : Window
                 Partner = draft.Partner,
                 Operator = draft.Operator,
                 Note = draft.Note,
+                // Anchor each HISA-written line so later reconciliation detects
+                // deletion of the document marker instead of silently importing it.
+                SourceRow = excelFirstRow is int first ? first + records.Count : null,
                 Legacy = false,
                 AffectsStock = true
             });
@@ -1192,8 +1196,9 @@ public partial class MainWindow : Window
         Interlocked.Increment(ref _activeExcelCommits);
         try
         {
-            if (!await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo)) return;
-            ApplyMovement(movementDraft, pending.DocNo);
+            var excelWrite = await TryWriteMovementToExcelAsync(movementDraft, pending.DocNo);
+            if (!excelWrite.Success) return;
+            ApplyMovement(movementDraft, pending.DocNo, excelWrite.FirstRow);
             pending.Status = "Đã xác nhận";
             if (!await PersistAsync(false))
             {
