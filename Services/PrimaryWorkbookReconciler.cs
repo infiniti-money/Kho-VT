@@ -28,11 +28,11 @@ public static class PrimaryWorkbookReconciler
     {
         public string Summary =>
             $"Excel đã lưu {SavedUtc.ToLocalTime():dd/MM/yyyy HH:mm}. " +
-            $"{Stocks.Count:N0} mã vật tư, {Transactions.Count:N0} dòng giao dịch.\\n" +
+            $"{Stocks.Count:N0} mã vật tư, {Transactions.Count:N0} dòng giao dịch.\n" +
             $"{NewSkus:N0} mã mới · {ChangedStocks:N0} số tồn khác cache · " +
-            $"{ChangedHistory:N0} dòng lịch sử nhập từ Excel thay đổi.\\n" +
+            $"{ChangedHistory:N0} dòng lịch sử nhập từ Excel thay đổi.\n" +
             (UnmatchedLocalSkus > 0
-                ? $"{UnmatchedLocalSkus:N0} mã chỉ có ở HISA sẽ được giữ nguyên, cần kiểm tra riêng.\\n"
+                ? $"{UnmatchedLocalSkus:N0} mã chỉ có ở HISA sẽ được giữ nguyên, cần kiểm tra riêng.\n"
                 : "") +
             "Chấp nhận sẽ dùng TỒN HIỆN TẠI tại Danh mục làm số dư chuẩn, " +
             "KHÔNG cộng thêm giao dịch Excel. Nhật ký nội bộ không bị xóa.";
@@ -54,6 +54,9 @@ public static class PrimaryWorkbookReconciler
         var rows = PrimaryWorkbookReader.ReadTransactions(path);
         if (Fingerprint(path) != before)
             throw new IOException("Excel thay đổi trong lúc đối chiếu; hãy lưu xong rồi thử lại.");
+        var unknownRow = rows.FirstOrDefault(row => !stocks.ContainsKey(row.Sku));
+        if (unknownRow is not null)
+            throw new InvalidDataException($"Nhập Xuất dòng {unknownRow.Row} có mã {unknownRow.Sku} không có trong Danh mục. Hãy sửa trong Excel trước khi đồng bộ.");
         VerifyOwnedMovements(rows, state);
         var current = state.Products.ToDictionary(p => p.Sku, StringComparer.OrdinalIgnoreCase);
         var history = state.Transactions.Where(t => t.Legacy && t.SourceRow.HasValue)
