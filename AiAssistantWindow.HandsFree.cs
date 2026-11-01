@@ -141,6 +141,21 @@ public partial class AiAssistantWindow
                 TryHandleAnCommand(transcript);
                 return;
             }
+            // Specific SKU lookup is resolved locally so An never invents
+            // the stock of a product omitted from Gemini's shortened context.
+            var stockAnswer = AiInventoryReport.TryAnswerStockBySku(_state, transcript);
+            if (stockAnswer is not null)
+            {
+                ChatMessages.Add(new AiChatMessage(true, transcript));
+                _lastAssistantText = stockAnswer;
+                ChatMessages.Add(new AiChatMessage(false, stockAnswer));
+                ScrollToBottom();
+                HandsFreeStatus.Text = "An đang đọc tình trạng mã vật tư.";
+                await SpeakReplyForHandsFreeAsync(stockAnswer, token,
+                    allowCloud: ShareDataCheck.IsChecked == true);
+                if (IsLive(generation, token)) await Task.Delay(750, token);
+                return;
+            }
             if (commandText.Contains("báo cáo tồn kho") ||
                 commandText.Contains("báo cáo tình trạng hàng") ||
                 commandText.Contains("kiểm tra tình trạng kho"))
