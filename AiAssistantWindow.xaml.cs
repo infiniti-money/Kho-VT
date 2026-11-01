@@ -234,6 +234,7 @@ public partial class AiAssistantWindow : Window
     private void StopSpeaking_Click(object sender, RoutedEventArgs e)
     {
         _speaker?.SpeakAsyncCancelAll();
+        try { _speechPlaybackCts?.Cancel(); } catch { }
         try { _handsFreeSpeaker?.SpeakAsyncCancelAll(); } catch { }
         ActivityStatus.Text = "Đã dừng đọc câu trả lời.";
     }
