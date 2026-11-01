@@ -46,7 +46,7 @@ public partial class MovementWindow : Window
         if (ToWarehousePanel is null || MovementTypeBox.SelectedItem is not ComboBoxItem selected) return;
         var type = selected.Content?.ToString();
         ToWarehousePanel.Visibility = type == "Điều chuyển" ? Visibility.Visible : Visibility.Collapsed;
-        PartnerLabel.Text = type == "Nhập" ? "NHÀ CUNG CẤP / NGUỒN" : "ĐƠN VỊ / NƠI NHẬN";
+        PartnerLabel.Text = "NGƯỜI NHẬN / GỬI";
         ScannerStatus.Text = type == "Nhập" ? "Nhập hàng sẽ cộng vào kho đã chọn." : type == "Xuất" ? "Xuất hàng sẽ trừ tồn của kho đã chọn." : "Điều chuyển sẽ trừ kho xuất và cộng kho nhận.";
     }
 
