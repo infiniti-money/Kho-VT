@@ -116,6 +116,7 @@ public partial class AiAssistantWindow
         {
             if (ReferenceEquals(_microphoneProbe, recorder))
                 StopMicrophoneProbe();
+            cts.Dispose();
         }
     }
 
