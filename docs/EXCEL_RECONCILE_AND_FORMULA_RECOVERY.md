@@ -9,7 +9,7 @@ Tại **Hệ thống & dữ liệu → File kho chính**, chọn đúng bản sa
 2. HISA sẽ thông báo khi cửa sổ được kích hoạt lại nếu timestamp file khác lần đồng bộ. Chọn **Đồng bộ từ Excel (xem trước)**.
 3. Kiểm tra số mã, chênh lệch số dư và lịch sử; bấm **Đồng bộ** mới cập nhật bộ nhớ HISA. HISA tạo `%LOCALAPPDATA%\HISA\QuanLyKho\SyncBackups\BeforeExcelSync-*.json` trước khi thay đổi cache.
 4. Tổng tồn Excel được lấy từ **công thức F** của `Danh mục` (không lấy tổng giao dịch để cộng thêm). Các kho con HISA đang có được giữ; `Kho tổng` là phần bù để tổng HISA bằng tổng Excel. Nếu có âm số dư kho con do số tổng Excel nhỏ hơn lượng đã phân bổ, phải đối chiếu thủ công.
-5. Dòng lịch sử từ Excel lưu dưới dạng `Legacy=true, AffectsStock=false`, đối chiếu bằng số dòng nguồn. Lặp lại đồng bộ không phát sinh thêm giao dịch/tồn. Phiếu HISA có dấu `[HISA:...] `trong Excel không nhập thêm lần thứ hai; phát hiện nội dung khác nhau thì chặn và yêu cầu xử lý xung đột.
+5. Dòng lịch sử từ Excel lưu dưới dạng `Legacy=true, AffectsStock=false`, đối chiếu bằng số dòng nguồn. Lặp lại đồng bộ không phát sinh thêm giao dịch/tồn. Phiếu HISA có dấu `[HISA:...]` trong Excel không nhập thêm lần thứ hai. Phiếu mới tạo hoặc duyệt bằng HISA được lưu kèm vị trí dòng nguồn; nếu dấu nhận diện mất, hoặc nội dung nhập/xuất thay đổi, HISA chặn đồng bộ để xử lý xung đột. Phiếu cũ trước tính năng này chưa có vị trí dòng nguồn nên không thể xác minh việc bị xóa chỉ bằng dấu nhận diện.
 
 **Khôi phục công thức thiếu:**
 1. Chọn **Khôi phục công thức từ bản sao** và trỏ tới một file `.bak` do HISA tạo trước khi ghi hoặc một `.xlsx` đã được người dùng kiểm tra, cùng cấu trúc với nguồn.
@@ -20,7 +20,7 @@ Tại **Hệ thống & dữ liệu → File kho chính**, chọn đúng bản sa
 ## Quy tắc an toàn
 
 - Tuyệt đối thử **bản sao KHO.xlsx** trước. Không đưa file thật lên GitHub.
-- Nếu file đã mở/khóa, đổi sau khi xem trước, thiếu mã vật tư của một giao dịch, công thức sai khác so với bản sao hay phiếu HISA bị sửa trực tiếp trong Excel, hệ thống **dừng** và hiển thị lý do.
+- Nếu file đã mở/khóa, đổi sau khi xem trước, trạng thái hoặc nhật ký HISA được sửa sau khi xem trước, thiếu mã vật tư của một giao dịch, công thức sai khác so với bản sao hay phiếu HISA có vị trí nguồn bị xóa/sửa dấu nhận diện, hệ thống **dừng** và hiển thị lý do.
 - Cache HISA vẫn còn các nghiệp vụ nội bộ (điều chuyển, đề xuất, phiếu chờ); các mã chỉ có ở HISA không tự bị xóa.
 - Đây chưa phải cơ chế hoà giải đồng thời nhiều người. Phát hiện thay đổi dựa trên thời gian lưu khi kích hoạt ứng dụng và hành động đồng bộ có duyệt, **không đồng bộ ngầm liên tục**.
 - Lỗi lưu cache sau khi ghi file và thay đổi công thức Excel không thể phục hồi tự động nếu người dùng không chọn bản sao lưu phù hợp.
@@ -31,6 +31,8 @@ Tại **Hệ thống & dữ liệu → File kho chính**, chọn đúng bản sa
 Smoke test `tests/ExcelAppend.SmokeTests` sẽ kiểm tra:
 - đồng bộ hai lượt không cộng tồn 2 lần;
 - nhận dạng riêng lịch sử từ Excel;
+- từ chối áp dụng bản xem trước sau khi người dùng thay đổi chi tiết nhật ký HISA;
+- phát hiện dấu `[HISA:...]` bị mất trên phiếu đã có vị trí dòng Excel, không cảnh báo nhầm với phiếu cũ chưa có vị trí;
 - khôi phục công thức I7 bị xóa từ bản `.bak` cùng mẫu;
 - bản sao lưu rollback có mặt và sheet ngoài phạm vi giữ nguyên hash;
 - các hồi quy ghi giao dịch an toàn và mở rộng 50 dòng sẵn có.
