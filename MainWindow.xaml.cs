@@ -1370,10 +1370,65 @@ public partial class MainWindow : Window
         PrintLabels(selected);
     }
 
+    private async void PrintExcelSlip_Click(object sender, RoutedEventArgs e)
+    {
+        if (AuditGrid.SelectedItem is not AuditRow selected)
+        {
+            ShowToast("Hãy chọn một dòng trong Nhật ký giao dịch rồi bấm In phiếu từ Excel.");
+            return;
+        }
+        var transaction = selected.Transaction;
+        if (transaction.Type is not ("Nhập" or "Xuất") ||
+            string.IsNullOrWhiteSpace(transaction.DocNo))
+        {
+            ShowToast("Mẫu Phiếu in Excel chỉ áp dụng với phiếu Nhập/Xuất có số phiếu đã lưu.");
+            return;
+        }
+        await PreviewExcelSlipAsync(transaction.DocNo);
+    }
+
+    private async Task PreviewExcelSlipAsync(string docNo)
+    {
+        if (_currentEmbeddedPage is not null)
+        {
+            ShowToast("Hãy quay về Nhật ký giao dịch trước khi xem phiếu in.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(State.PrimaryExcelPath))
+        {
+            ShowToast("Hãy chọn file KHO.xlsx chính tại Dữ liệu & phần mềm trước khi in.");
+            return;
+        }
+        try
+        {
+            ShowToast("Đang tạo bản xem trước từ sheet Phiếu in trong Excel...");
+            var pdf = await ExcelSlipTemplatePrinter.CreatePreviewAsync(State.PrimaryExcelPath, docNo);
+            if (_currentEmbeddedPage is not null)
+            {
+                pdf.Dispose();
+                return;
+            }
+            ShowEmbeddedPage(new ExcelPdfPreviewWindow(pdf), "Phiếu in Excel",
+                "Bố cục nguyên gốc từ KHO.xlsx • xem trước PDF và chọn máy in");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                "Không tạo được phiếu in từ sheet Phiếu in: " + ex.Message +
+                "\n\nHãy kiểm tra file KHO.xlsx và Microsoft Excel trên máy tính.",
+                "Mẫu phiếu in Excel", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private void PrintSlip(IReadOnlyCollection<InventoryTransaction> records)
     {
         if (records.Count == 0) return;
         var first = records.First();
+        if (first.Type is "Nhập" or "Xuất")
+        {
+            _ = PreviewExcelSlipAsync(first.DocNo);
+            return;
+        }
         var template = PrintTemplateService.Get(State, first.Type);
         var flow = NewPrintDocument();
         PrintTemplateLayout.Apply(flow, template);
