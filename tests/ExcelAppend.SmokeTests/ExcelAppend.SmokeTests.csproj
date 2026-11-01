@@ -10,6 +10,7 @@
     <Compile Include="../../Models.cs" Link="Models.cs" />
     <Compile Include="../../Services/ImageDataService.cs" Link="ImageDataService.cs" />
     <Compile Include="../../Services/PrimaryWorkbookReconciler.cs" Link="PrimaryWorkbookReconciler.cs" />
+    <Compile Include="../../Services/AnCatalogEditService.cs" Link="AnCatalogEditService.cs" />
     <Compile Include="../../Services/PrimaryFormulaRecovery.cs" Link="PrimaryFormulaRecovery.cs" />
     <Compile Include="../../Services/PrimaryWorkbookTransactionWriter.cs" Link="PrimaryWorkbookTransactionWriter.cs" />
     <Compile Include="../../Services/PrimaryWorkbookInspector.cs" Link="PrimaryWorkbookInspector.cs" />

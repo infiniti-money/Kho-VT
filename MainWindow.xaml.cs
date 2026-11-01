@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeAnTray();
         DataContext = this;
         UpdateStatusText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Chưa kiểm tra bản phát hành mới.";
         SystemInfoText.Text = $"Phiên bản {WarehouseUpdateService.CurrentVersion.ToString(3)} · Windows x64 · HISA Kho-VT";
@@ -538,6 +539,8 @@ public partial class MainWindow : Window
     private void CompleteEmbeddedPage(Window window, bool accepted, Action<bool>? completion)
     {
         if (_currentEmbeddedPage?.Source != window) return;
+        if (window is AiAssistantWindow assistant)
+            assistant.EndHandsFreeAndCancel(); // Never leave a detached mic session.
         EmbeddedPageHost.Content = null;
         if (_embeddedPageStack.Count > 0)
         {
@@ -642,10 +645,12 @@ public partial class MainWindow : Window
         if (_state is null || !CanOpenAnotherPage()) return;
         var assistant = new AiAssistantWindow(State)
         {
-            OpenReplenishment = () => OpenReplenishment()
+            OpenReplenishment = () => OpenReplenishment(),
+            ReviewCatalogEdit = ReviewAnCatalogEdit,
+            BringToForeground = RestoreFromAnTray
         };
-        ShowEmbeddedPage(assistant, "Trợ lý AI Gemini",
-            "Trò chuyện, báo cáo tồn kho theo tuần và tháng, mic và phản hồi bằng âm thanh");
+        ShowEmbeddedPage(assistant, "An · Trợ lý kho vật tư",
+            "Giọng nữ tiếng Việt, báo cáo tồn kho, lập đề xuất duyệt và rảnh tay khi thu nhỏ");
     }
     private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 

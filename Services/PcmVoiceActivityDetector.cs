@@ -34,7 +34,7 @@ public sealed class PcmVoiceActivityDetector
     public int BufferedBeforeSpeechBytes => _preRoll.Sum(x => x.Length);
     public int RecordedBytes => (int)_utterance.Length;
 
-    public PcmVoiceActivityDetector(int rmsThreshold = 700)
+    public PcmVoiceActivityDetector(int rmsThreshold = 450)
     {
         if (rmsThreshold < 50 || rmsThreshold > 12000)
             throw new ArgumentOutOfRangeException(nameof(rmsThreshold));
