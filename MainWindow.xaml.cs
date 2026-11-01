@@ -645,7 +645,8 @@ public partial class MainWindow : Window
         if (_state is null || !CanOpenAnotherPage()) return;
         var assistant = new AiAssistantWindow(State)
         {
-            OpenReplenishment = () => OpenReplenishment()
+            OpenReplenishment = () => OpenReplenishment(),
+            ReviewCatalogEdit = ReviewAnCatalogEdit
         };
         ShowEmbeddedPage(assistant, "An · Trợ lý kho vật tư",
             "Giọng nữ tiếng Việt, báo cáo tồn kho, lập đề xuất duyệt và rảnh tay khi thu nhỏ");
