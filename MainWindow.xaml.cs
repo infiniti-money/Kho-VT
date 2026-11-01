@@ -614,6 +614,11 @@ public partial class MainWindow : Window
     private void NavSettings_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("settings"));
     private void NavMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
     private void QuickMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
+    private void QuickReceipt_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenMovementAsync(initialType: "Nhập"));
+
+    private void QuickShipment_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenMovementAsync(initialType: "Xuất"));
     private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
     private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
@@ -978,7 +983,7 @@ public partial class MainWindow : Window
     {
         if (!CanOpenAnotherPage()) return;
         var page = new CatalogsWindow(State);
-        ShowEmbeddedPage(page, "Quản lý danh mục", "Kho hàng, đơn vị tính, bộ phận và nơi giao nhận", accepted =>
+        ShowEmbeddedPage(page, "Quản lý danh mục", "Phân loại hàng hóa, kho, đơn vị tính, bộ phận và người nhận / gửi", accepted =>
         {
             if (accepted) _ = SaveCatalogsAsync(page);
         });
@@ -995,6 +1000,7 @@ public partial class MainWindow : Window
             foreach (var removed in item.WarehouseStocks.Keys.Where(warehouse => !warehouses.Contains(warehouse, StringComparer.Ordinal)).ToList()) item.WarehouseStocks.Remove(removed);
         }
         State.Warehouses = warehouses;
+        State.Categories = dialog.Categories;
         State.Units = dialog.Units;
         State.Departments = dialog.Departments;
         State.Recipients = dialog.Recipients;
@@ -1823,32 +1829,17 @@ public partial class MainWindow : Window
 
             UpdateStatusText.Text = $"Đã tìm thấy {release.Tag}. Đang tải xuống và kiểm tra SHA-256…";
             var package = await WarehouseUpdateService.DownloadVerifiedAsync(release);
-            var hasUpdater = File.Exists(Path.Combine(AppContext.BaseDirectory, "HISA.Updater.exe"));
-            var canInstall = hasUpdater && WarehouseUpdateService.IsInstallFolderWritable(AppContext.BaseDirectory);
-            if (canInstall)
+            if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "HISA.Updater.exe")))
             {
-                UpdateStatusText.Text = $"Đã tải và xác minh thành công {release.Tag}. Chờ xác nhận cài đặt.";
-                ConfirmInApp(
-                    $"Đã tải xong bản {release.Tag} và xác minh SHA-256. " +
-                    "Bạn muốn HISA tự đóng, cập nhật im lặng rồi mở lại không? " +
-                    "Nếu chọn Không, tệp đã tải được giữ lại để cài thủ công.",
-                    accepted =>
-                    {
-                        if (accepted) _ = InstallDownloadedUpdateAsync(package);
-                        else ShowManualUpdatePackage(package);
-                    },
-                    "Có, cập nhật", "Không, thủ công");
+                UpdateStatusText.Text = "Bản HISA đang cài chưa có bộ tự cập nhật. Đã tải và xác minh ZIP, hãy dùng bộ cài mới một lần.";
+                ShowManualUpdatePackage(package);
+                return;
             }
-            else
-            {
-                UpdateStatusText.Text = $"Bản {release.Tag} đã tải và xác minh. " +
-                    "Thư mục cài đặt cần quyền quản trị hoặc thiếu HISA.Updater.exe; chỉ cài thủ công.";
-                ConfirmInApp(
-                    "Tệp tải về đã được xác minh. Máy này không đủ điều kiện cập nhật im lặng " +
-                    "(có thể đang cài trong Program Files). Mở vị trí tệp để cài bằng quyền quản trị?",
-                    accepted => { if (accepted) ShowManualUpdatePackage(package); },
-                    "Mở tệp tải về", "Để sau");
-            }
+            // One-click flow: a deliberate press initiates download, verified
+            // update, automatic HISA shutdown and relaunch. Windows may still
+            // request an administrator approval (UAC) for Program Files.
+            UpdateStatusText.Text = $"Đã xác minh SHA-256 bản {release.Tag}. Đang cài và mở lại HISA…";
+            await InstallDownloadedUpdateAsync(package);
         }
         catch (Exception ex)
         {
