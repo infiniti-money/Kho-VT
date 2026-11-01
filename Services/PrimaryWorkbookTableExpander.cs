@@ -141,8 +141,7 @@ public static class PrimaryWorkbookTableExpander
         foreach (var name in originalZip.Entries.Where(e => e.FullName.StartsWith("xl/tables/") &&
                      e.FullName.EndsWith(".xml")).Select(e => e.FullName))
         {
-            XDocument doc;
-            if (!changes.TryGetValue(name, out doc!))
+            if (!changes.TryGetValue(name, out var doc))
             {
                 using var stream = originalZip.GetEntry(name)!.Open();
                 doc = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
