@@ -173,6 +173,10 @@ public static class PrimaryWorkbookTableExpander
             foreach (var attribute in element.Attributes().Where(a =>
                 a.Name.LocalName is "sqref" or "ref"))
             {
+                // A shared-formula master may cover I5:I965. The new rows receive
+                // explicit formulas, so do NOT extend that shared group range.
+                if (element.Name.LocalName == "f" && attribute.Name.LocalName == "ref")
+                    continue;
                 var before = attribute.Value;
                 var after = ExtendAddress(before, oldLast, newLast);
                 if (after != before) { attribute.Value = after; changed = true; }
