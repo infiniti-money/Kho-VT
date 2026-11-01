@@ -78,13 +78,16 @@ public partial class AiAssistantWindow
     {
         if (!IsLive(generation, token) || _busy) return;
         StopCapture();
-        var recorder = new HandsFreePcmRecorder();
+        var recorder = new HandsFreePcmRecorder(_selectedMicrophone);
         recorder.UtteranceReady += pcm =>
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (IsLive(generation, token))
                     _ = ProcessHandsFreeUtteranceAsync(pcm, generation, token);
             }), DispatcherPriority.Normal);
+        recorder.InputLevelChanged += level =>
+            Dispatcher.BeginInvoke(new Action(() =>
+                DisplayMicrophoneLevel(level, IsLive(generation, token))));
         recorder.CaptureStopped += error =>
         {
             if (error is null) return;
@@ -98,7 +101,7 @@ public partial class AiAssistantWindow
         try
         {
             recorder.Start();
-            HandsFreeStatus.Text = "● Đang nghe giọng nói (PCM)";
+            HandsFreeStatus.Text = "● Đang nghe: " + (InputMicrophoneBox.SelectedItem as MicrophoneDeviceOption)?.Label;
             ActivityStatus.Text = "Đang nghe. Nói tiếng Việt, tự dừng sau 1,2 giây im lặng.";
         }
         catch
@@ -324,7 +327,7 @@ public partial class AiAssistantWindow
         var cts = new CancellationTokenSource();
         _manualMicCts = cts;
         var generation = ++_manualMicGeneration;
-        var recorder = new HandsFreePcmRecorder();
+        var recorder = new HandsFreePcmRecorder(_selectedMicrophone);
         _manualRecorder = recorder;
         recorder.UtteranceReady += pcm =>
             Dispatcher.BeginInvoke(new Action(() =>
@@ -332,6 +335,9 @@ public partial class AiAssistantWindow
                 if (ManualMicLive(generation, cts.Token))
                     _ = ProcessManualMicrophoneAsync(pcm, generation, cts.Token);
             }), DispatcherPriority.Normal);
+        recorder.InputLevelChanged += level =>
+            Dispatcher.BeginInvoke(new Action(() =>
+                DisplayMicrophoneLevel(level, ManualMicLive(generation, cts.Token))));
         recorder.CaptureStopped += error =>
         {
             if (error is null) return;
@@ -347,8 +353,9 @@ public partial class AiAssistantWindow
         {
             recorder.Start();
             MicButton.Content = "■ Hủy mic";
-            ActivityStatus.Text = "Đang nghe tiếng Việt qua micro mặc định Windows 11. " +
-                "Nói rõ, tạm ngừng 1,2 giây để gửi tới Gemini.";
+            ActivityStatus.Text = "Đang nghe tiếng Việt bằng: " +
+                (InputMicrophoneBox.SelectedItem as MicrophoneDeviceOption)?.Label +
+                ". Nói rõ, tạm ngừng 1,2 giây để gửi tới Gemini.";
         }
         catch (Exception ex)
         {
@@ -413,6 +420,7 @@ public partial class AiAssistantWindow
         recorder?.Dispose();
         cts?.Dispose();
         MicButton.Content = "🎙 Mic";
+        MicrophoneLevelBar.Value = 0;
     }
 
     private void StopHandsFree(string status)
@@ -427,6 +435,7 @@ public partial class AiAssistantWindow
         try { _handsFreeSpeaker?.SpeakAsyncCancelAll(); } catch { }
         HandsFreeButton.Content = "🎙 Bật rảnh tay";
         HandsFreeStatus.Text = "Rảnh tay đang tắt";
+        MicrophoneLevelBar.Value = 0;
         ActivityStatus.Text = status;
         // Pending continuations have the canceled token and cannot restart capture.
     }
