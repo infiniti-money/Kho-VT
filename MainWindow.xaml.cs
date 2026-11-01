@@ -1096,8 +1096,58 @@ public partial class MainWindow : Window
         await _excelMovementWriteGate.WaitAsync();
         try
         {
+            // The authoritative source for an unknown incoming SKU is the
+            // separate reference catalog. Never inherit its stock quantity.
+            // Only validated name/unit enter a new blank catalog row in KHO.
+            var newItems = await Task.Run(() =>
+            {
+                var known = PrimaryWorkbookReader.ReadStocks(path);
+                var missing = draft.Lines.Where(line => !known.ContainsKey(line.Sku.Trim()))
+                    .Select(line => line.Sku.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (missing.Count == 0)
+                    return new List<PrimaryWorkbookTransactionWriter.CatalogInput>();
+                if (draft.Type != "Nhập")
+                    throw new InvalidDataException("Không tự bổ sung mã hàng khi xuất kho.");
+                var referencePath = ReferenceMaterialLookup.Resolve(State.ReferencePath, path);
+                var catalog = ReferenceMaterialLookup.Read(referencePath);
+                var additions = new List<PrimaryWorkbookTransactionWriter.CatalogInput>();
+                foreach (var sku in missing)
+                {
+                    if (!catalog.TryGetValue(sku, out var item))
+                        throw new InvalidDataException($"Không tìm thấy {sku} trong danh mục đối chiếu, từ chối ghi phiếu.");
+                    additions.Add(new PrimaryWorkbookTransactionWriter.CatalogInput(
+                        item.Sku, item.Name,
+                        string.IsNullOrWhiteSpace(item.Unit) ? "Cái" : item.Unit));
+                }
+                return additions;
+            });
             var result = await Task.Run(() =>
-                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows, expectedExcelHash));
+                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows, expectedExcelHash, newItems));
+            // A successful atomic Excel commit is the only point where an
+            // unknown SKU becomes an item in HISA. The new row has opening
+            // balance 0 and this receipt is applied exactly once below.
+            foreach (var material in newItems)
+            {
+                if (State.Products.Any(p => p.Sku.Equals(material.Sku, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                var product = new InventoryItem
+                {
+                    Sku = material.Sku,
+                    Name = material.Name,
+                    Barcode = material.Sku,
+                    Unit = material.Unit,
+                    Category = "Vật tư khác",
+                    Active = true,
+                    WarehouseStocks = State.Warehouses.ToDictionary(warehouse => warehouse, _ => 0d)
+                };
+                State.Products.Add(product);
+                if (!State.Categories.Contains(product.Category, StringComparer.OrdinalIgnoreCase))
+                    State.Categories.Add(product.Category);
+                if (!State.Units.Contains(product.Unit, StringComparer.OrdinalIgnoreCase))
+                    State.Units.Add(product.Unit);
+            }
+            if (newItems.Count > 0)
+                InitializeFilters();
             // Store the hash of the actual staged workbook, not the previous
             // Excel snapshot. The next write will detect any external save.
             State.PrimarySyncFingerprint = result.WorkbookHash;
