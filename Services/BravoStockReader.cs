@@ -13,7 +13,6 @@ namespace HisaWarehouse.Services;
 public static class BravoStockReader
 {
     public sealed record Row(string Sku, string Name, string Unit, double Quantity, string Sheet, int SourceRow);
-    private static readonly CultureInfo Vi = CultureInfo.GetCultureInfo("vi-VN");
 
     public static IReadOnlyDictionary<string, Row> Read(string path)
     {
@@ -103,15 +102,11 @@ public static class BravoStockReader
         if (text.Length == 0) return false;
         var negativeParentheses = text.StartsWith('(') && text.EndsWith(')');
         if (negativeParentheses) text = "-" + text[1..^1];
-        // Prefer Vietnamese number convention for string-formatted Bravo
-        // exports (1.234,5 = 1234.5); ordinary numeric Excel cells bypass it.
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, Vi, out number)
-            && double.IsFinite(number))
-        {
-            value = number;
-            return true;
-        }
-        if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands,
+        // Text numbers may be Vietnamese (1.234,5) or invariant (-3.5).
+        // Parse after normalizing to avoid mistaking a decimal dot for a
+        // thousands separator. Native numeric Excel cells are handled above.
+        var normalized = text.Contains(',') ? text.Replace(".", "").Replace(',', '.') : text;
+        if (double.TryParse(normalized, NumberStyles.Float,
                 CultureInfo.InvariantCulture, out number) && double.IsFinite(number))
         {
             value = number;
