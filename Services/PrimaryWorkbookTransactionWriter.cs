@@ -128,7 +128,14 @@ public static class PrimaryWorkbookTransactionWriter
                 for (int row = FirstDataRow; row <= currentLast; row++)
                 {
                     if (!rows.TryGetValue(row, out var node)) continue;
-                    if (Writable.Any(col => !IsBlank(node, col + row, sharedStrings)))
+                    // Formula-backed E/F exist on every formatted blank row.
+                    // They do NOT mean a business row is occupied. Plain
+                    // E/F text, like the actual input columns, does.
+                    if (Writable.Any(col =>
+                        col is "E" or "F"
+                            ? Cell(node, col + row)?.Element(M + "f") is null &&
+                              !IsBlank(node, col + row, sharedStrings)
+                            : !IsBlank(node, col + row, sharedStrings)))
                         occupiedEnd = row;
                 }
                 firstRow = occupiedEnd + 1;
