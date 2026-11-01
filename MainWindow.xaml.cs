@@ -56,6 +56,8 @@ public partial class MainWindow : Window
         {
             if (_currentEmbeddedPage?.Source is AiAssistantWindow activeAi)
                 activeAi.EndHandsFreeAndCancel();
+            if (_currentEmbeddedPage?.Source is ExcelPdfPreviewWindow activePreview)
+                activePreview.ReleaseTemporaryFiles();
             foreach (var page in _embeddedPageStack)
                 if (page.Source is AiAssistantWindow nestedAi)
                     nestedAi.EndHandsFreeAndCancel();
@@ -1401,9 +1403,10 @@ public partial class MainWindow : Window
         }
         try
         {
+            var returnPage = _currentPage;
             ShowToast("Đang tạo bản xem trước từ sheet Phiếu in trong Excel...");
             var pdf = await ExcelSlipTemplatePrinter.CreatePreviewAsync(State.PrimaryExcelPath, docNo);
-            if (_currentEmbeddedPage is not null)
+            if (_currentEmbeddedPage is not null || _currentPage != returnPage || !IsVisible)
             {
                 pdf.Dispose();
                 return;
