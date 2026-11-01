@@ -1,10 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+
+    <Compile Include="../../Models.cs" Link="Models.cs" />
+    <Compile Include="../../Services/ImageDataService.cs" Link="ImageDataService.cs" />
+    <Compile Include="../../Services/PrimaryWorkbookReconciler.cs" Link="PrimaryWorkbookReconciler.cs" />
+    <Compile Include="../../Services/PrimaryFormulaRecovery.cs" Link="PrimaryFormulaRecovery.cs" />
     <Compile Include="../../Services/PrimaryWorkbookTransactionWriter.cs" Link="PrimaryWorkbookTransactionWriter.cs" />
     <Compile Include="../../Services/PrimaryWorkbookInspector.cs" Link="PrimaryWorkbookInspector.cs" />
     <Compile Include="../../Services/PrimaryWorkbookTableExpander.cs" Link="PrimaryWorkbookTableExpander.cs" />
