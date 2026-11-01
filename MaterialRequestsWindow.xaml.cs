@@ -42,8 +42,8 @@ public partial class MaterialRequestsWindow : Window
         CountText.Text = $"{rows.Count:N0} yêu cầu · {rows.Count(row => row.Request.Status is "Chờ xử lý" or "Chờ duyệt"):N0} đang chờ duyệt";
     }
 
-    private void NewIssueRequest_Click(object sender, RoutedEventArgs e) => CreateRequest("Yêu cầu cấp vật tư");
-    private void NewReceiptRequest_Click(object sender, RoutedEventArgs e) => CreateRequest("Yêu cầu nhập vật tư");
+    private void NewReserveRequest_Click(object sender, RoutedEventArgs e) =>
+        CreateRequest("Yêu cầu cấp vật tư dự phòng");
     private void CreateRequest(string type)
     {
         var editor = new MaterialRequestEditorWindow(_state, type) { Owner = this };
