@@ -112,11 +112,15 @@ void BuildWorkbook(bool missingFormula = false)
     Add("xl/worksheets/sheet5.xml", new XDocument(new XElement(m + "worksheet",
         new XElement(m + "sheetData", new XElement(m + "row", new XAttribute("r", 3),
             new XElement(m + "c", new XAttribute("r", "A3"),
-                new XElement(m + "f", "SUM('Nhập Xuất'!$G$5:$G$965)"),
+                new XElement(m + "f", "SUM('Nhập Xuất'!$G$5:$G$965)+SUM($A$5:$A$965)"),
                 new XElement(m + "v", "0")))))));
     Add("xl/worksheets/sheet3.xml",
-        new XDocument(new XElement(m + "worksheet", new XElement(m + "sheetData",
-            new XElement(m + "row", new XAttribute("r", 1), Str("A1", "Báo cáo cần bảo toàn"))))));
+        new XDocument(new XElement(m + "worksheet",
+            new XElement(m + "dimension", new XAttribute("ref", "A1:Q965")),
+            new XElement(m + "sheetData",
+                new XElement(m + "row", new XAttribute("r", 1), Str("A1", "Báo cáo cần bảo toàn"))),
+            new XElement(m + "dataValidations",
+                new XElement(m + "dataValidation", new XAttribute("sqref", "C5:C965"))))));
     Add("xl/charts/chart1.xml", new XDocument(new XElement("ChartPart", "unchanged")));
     Add("xl/externalLinks/externalLink1.xml", new XDocument(new XElement("ForeignBook", "unchanged")));
 }
@@ -222,6 +226,11 @@ try
         Check(Cell(cat, "F4").Element(m + "f")!.Value.Contains("$G$" + finalRow) &&
               Cell(printed, "A3").Element(m + "f")!.Value.Contains("$G$" + finalRow),
             "update inventory SUMIFS and original Phiếu in template formula references");
+        Check(Cell(printed, "A3").Element(m + "f")!.Value.Contains("$A$5:$A$965"),
+            "do not extend unrelated ranges within a formula referring to Nhập Xuất");
+        using (var unchanged = workbook.GetEntry("xl/worksheets/sheet3.xml")!.Open())
+            Check(SHA256.HashData(unchanged).SequenceEqual(original),
+                "do not change unrelated sheet dimensions or validation ranges on expansion");
         Check(SHA256.HashData(File.ReadAllBytes(expanded.BackupPath)).SequenceEqual(originalBytes),
             "keep exact pre-expansion workbook as backup");
         Check(Text(Cell(tx, "M7")) == "Ô trợ giúp, phải giữ",
