@@ -1,10 +1,14 @@
+using HisaWarehouse.Services;
 using System.Windows;
 
 namespace HisaWarehouse;
 
-public partial class ManageUnitsWindow : Window
+public partial class ManageUnitsWindow : Window, IWorkspaceDirtyPage
 {
     private readonly IReadOnlyCollection<InventoryItem> _products;
+    private readonly WorkspaceFormSnapshot _navigationSnapshot;
+    public bool HasUnsavedChanges => _navigationSnapshot.HasChanges;
+    private string CaptureForm() => WorkspaceFormSnapshot.Serialize(Units.ToArray(), UnitInput.Text);
     public List<string> Units { get; private set; }
 
     public ManageUnitsWindow(IEnumerable<string> units, IReadOnlyCollection<InventoryItem> products)
@@ -13,6 +17,7 @@ public partial class ManageUnitsWindow : Window
         _products = products;
         Units = units.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.CurrentCultureIgnoreCase).ToList();
         RefreshList();
+        _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
     }
 
     private void RefreshList() => UnitList.ItemsSource = Units.Select(unit => _products.Any(p => p.Active && p.Unit.Equals(unit, StringComparison.OrdinalIgnoreCase)) ? $"{unit}  ·  đang sử dụng" : unit).ToList();
