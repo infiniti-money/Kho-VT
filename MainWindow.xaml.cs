@@ -585,8 +585,9 @@ public partial class MainWindow : Window
             {
                 "dashboard" => "NavDashboard",
                 "inventory" => "NavInventory",
-                "audit" or "reports" => "NavReports",
-                "labels" => "NavInventory",
+                "audit" => "NavAudit",
+                "reports" => "NavReports",
+                "labels" => "NavLabels",
                 "settings" => "NavSettings",
                 _ => "NavDashboard"
             }
