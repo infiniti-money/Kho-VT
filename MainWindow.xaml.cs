@@ -325,7 +325,12 @@ public partial class MainWindow : Window
         var selectedWarehouses = SelectedWarehouses;
         var rows = State.Products.Where(p => p.Active)
             .Where(_ => selectedWarehouses.Count > 0)
-            .Select(p => new InventoryRow { Item = p, Stock = p.StockAt(selectedWarehouses) })
+            .Select(p => new InventoryRow
+            {
+                Item = p,
+                Stock = p.StockAt(selectedWarehouses),
+                SelectedForLabel = _labelSelection.Contains(p.Sku)
+            })
             .Where(r => string.IsNullOrWhiteSpace(query) || r.Sku.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Item.Barcode.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase) || r.Department.Contains(query, StringComparison.CurrentCultureIgnoreCase))
             .Where(r => category == "Tất cả nhóm" || r.Category == category)
             .Where(r => status == "Tất cả trạng thái" || r.Status == status)
@@ -461,9 +466,9 @@ public partial class MainWindow : Window
         if (!CanOpenAnotherPage()) return;
         _currentPage = page;
         DashboardPage.Visibility = page == "dashboard" ? Visibility.Visible : Visibility.Collapsed;
-        InventoryWorkspaceTabs.Visibility = page is "inventory" or "labels" ? Visibility.Visible : Visibility.Collapsed;
-        if (page == "inventory") InventoryWorkspaceTabs.SelectedIndex = 0;
-        if (page == "labels") InventoryWorkspaceTabs.SelectedIndex = 1;
+        // Material lookup, stock-status filtering and label/barcode printing
+        // now share the single inventory work area.
+        InventoryWorkspaceTabs.Visibility = page == "inventory" ? Visibility.Visible : Visibility.Collapsed;
         AuditReportTabs.Visibility = page is "reports" or "audit" ? Visibility.Visible : Visibility.Collapsed;
         if (page is "reports" or "audit")
         {
@@ -476,7 +481,6 @@ public partial class MainWindow : Window
             "inventory" => ("Danh mục tồn kho", "Tìm kiếm, phân loại, cập nhật số dư và quản lý SKU"),
             "audit" => ("Nhật ký giao dịch", "Tra cứu chứng từ, luồng hàng và người thực hiện"),
             "reports" => ("Báo cáo & nhật ký", "Tra cứu lịch sử, lọc nâng cao và xuất báo cáo Excel"),
-            "labels" => ("Tem & mã vạch", "Tạo nhãn SKU và in theo lô"),
             "settings" => ("Dữ liệu Excel và sao lưu", "Thông tin nguồn và phục hồi dữ liệu ứng dụng"),
             "movement" => ("Nhập & Xuất kho", "Ghi nhận giao nhận và điều chuyển vật tư"),
             _ => ("Tổng quan kho", "Theo dõi tồn kho và luân chuyển vật tư")
@@ -568,17 +572,16 @@ public partial class MainWindow : Window
     {
         var activeName = _currentEmbeddedPage?.Source switch
         {
-            QuickSearchWindow => "NavQuickSearch",
-            NegativeStockWindow => "NavNegativeStock",
+            QuickSearchWindow or NegativeStockWindow => "NavInventory",
             MovementWindow => "NavMovement",
             PendingMovementsWindow => "NavPending",
-            MaterialRequestsWindow or MaterialRequestEditorWindow => "NavRequests",
+            MaterialRequestsWindow or MaterialRequestEditorWindow => "NavReplenishment",
             ReplenishmentWindow => "NavReplenishment",
             PrintTemplateWindow => "NavPrintTemplates",
             AiAssistantWindow => "NavAi",
             DetailedReportsWindow => "NavReports",
             CatalogsWindow or ManageUnitsWindow => "NavCatalogs",
-            SoftwareInfoWindow => "NavSoftwareInfo",
+            SoftwareInfoWindow => "NavSettings",
             ItemEditorWindow => "NavInventory",
             ReferenceInventoryWindow => "NavSettings",
             _ => _currentPage switch
@@ -587,16 +590,14 @@ public partial class MainWindow : Window
                 "inventory" => "NavInventory",
                 "audit" => "NavAudit",
                 "reports" => "NavReports",
-                "labels" => "NavLabels",
                 "settings" => "NavSettings",
                 _ => "NavDashboard"
             }
         };
 
-        foreach (var button in new[] { NavDashboard, NavInventory, NavMovement, NavAudit,
-                     NavLabels, NavSettings, NavQuickSearch, NavNegativeStock, NavReports,
-                     NavCatalogs, NavSoftwareInfo, NavPending, NavRequests, NavReplenishment,
-                     NavAi, NavPrintTemplates })
+        foreach (var button in new[] { NavDashboard, NavAi, NavInventory,
+                     NavMovement, NavPending, NavReplenishment, NavReports,
+                     NavAudit, NavPrintTemplates, NavCatalogs, NavSettings })
         {
             var active = button.Name == activeName;
             button.Background = active ? new SolidColorBrush(Color.FromRgb(21, 127, 134)) : Brushes.Transparent;
@@ -608,10 +609,16 @@ public partial class MainWindow : Window
     private void NavDashboard_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("dashboard"));
     private void NavInventory_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("inventory"));
     private void NavAudit_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("audit"));
-    private void NavLabels_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("labels"));
+    private void NavLabels_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => NavigateTo("inventory"));
     private void NavSettings_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => NavigateTo("settings"));
     private void NavMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
     private void QuickMovement_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMovementAsync());
+    private void QuickReceipt_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenMovementAsync(initialType: "Nhập"));
+
+    private void QuickShipment_Click(object sender, RoutedEventArgs e) =>
+        RequestRootNavigation(() => _ = OpenMovementAsync(initialType: "Xuất"));
     private void NavPending_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPendingMovementsAsync());
     private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(OpenReplenishment);
@@ -640,7 +647,7 @@ public partial class MainWindow : Window
     private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 
     private void NavQuickSearch_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(OpenQuickSearch);
+        RequestRootNavigation(() => NavigateTo("inventory"));
 
     private void OpenQuickSearch()
     {
@@ -655,7 +662,11 @@ public partial class MainWindow : Window
     }
 
     private void NavNegativeStock_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(OpenNegativeStock);
+        RequestRootNavigation(() =>
+        {
+            NavigateTo("inventory");
+            StatusFilter.SelectedIndex = 2; // Low-stock filter in the main inventory list.
+        });
 
     private void OpenNegativeStock()
     {
@@ -972,7 +983,7 @@ public partial class MainWindow : Window
     {
         if (!CanOpenAnotherPage()) return;
         var page = new CatalogsWindow(State);
-        ShowEmbeddedPage(page, "Quản lý danh mục", "Kho hàng, đơn vị tính, bộ phận và nơi giao nhận", accepted =>
+        ShowEmbeddedPage(page, "Quản lý danh mục", "Phân loại hàng hóa, kho, đơn vị tính, bộ phận và người nhận / gửi", accepted =>
         {
             if (accepted) _ = SaveCatalogsAsync(page);
         });
@@ -989,6 +1000,7 @@ public partial class MainWindow : Window
             foreach (var removed in item.WarehouseStocks.Keys.Where(warehouse => !warehouses.Contains(warehouse, StringComparer.Ordinal)).ToList()) item.WarehouseStocks.Remove(removed);
         }
         State.Warehouses = warehouses;
+        State.Categories = dialog.Categories;
         State.Units = dialog.Units;
         State.Departments = dialog.Departments;
         State.Recipients = dialog.Recipients;
@@ -1084,8 +1096,85 @@ public partial class MainWindow : Window
         await _excelMovementWriteGate.WaitAsync();
         try
         {
+            // The authoritative source for an unknown incoming SKU is the
+            // separate reference catalog. Never inherit its stock quantity.
+            // Only validated name/unit enter a new blank catalog row in KHO.
+            var newItems = await Task.Run(() =>
+            {
+                var known = PrimaryWorkbookReader.ReadStocks(path);
+                var notSynced = draft.Lines.FirstOrDefault(line =>
+                    known.ContainsKey(line.Sku.Trim()) &&
+                    !State.Products.Any(product => product.Active &&
+                        product.Sku.Equals(line.Sku.Trim(), StringComparison.OrdinalIgnoreCase)));
+                if (notSynced is not null)
+                    throw new InvalidDataException(
+                        $"Mã {notSynced.Sku} đã có trong Danh mục Excel nhưng chưa đồng bộ vào HISA. " +
+                        "Hãy Đồng bộ từ Excel trước khi lập phiếu để tránh sai lệch.");
+                var missing = draft.Lines.Where(line => !known.ContainsKey(line.Sku.Trim()))
+                    .Select(line => line.Sku.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (missing.Count == 0)
+                    return new List<PrimaryWorkbookTransactionWriter.CatalogInput>();
+                if (draft.Type != "Nhập")
+                    throw new InvalidDataException("Không tự bổ sung mã hàng khi xuất kho.");
+                var referencePath = ReferenceMaterialLookup.Resolve(State.ReferencePath, path);
+                var catalog = ReferenceMaterialLookup.Read(referencePath);
+                var additions = new List<PrimaryWorkbookTransactionWriter.CatalogInput>();
+                foreach (var sku in missing)
+                {
+                    if (!catalog.TryGetValue(sku, out var item))
+                        throw new InvalidDataException($"Không tìm thấy {sku} trong danh mục đối chiếu, từ chối ghi phiếu.");
+                    var cached = State.Products.FirstOrDefault(p =>
+                        p.Sku.Equals(sku, StringComparison.OrdinalIgnoreCase));
+                    if (cached is not null && Math.Abs(cached.TotalStock) > 0.0000001)
+                        throw new InvalidDataException(
+                            $"Mã {sku} có tồn cục bộ nhưng chưa có trong Danh mục Excel. " +
+                            "Hãy đối chiếu số dư trước khi nhập để không cộng tồn hai lần.");
+                    additions.Add(new PrimaryWorkbookTransactionWriter.CatalogInput(
+                        item.Sku, item.Name,
+                        string.IsNullOrWhiteSpace(item.Unit) ? "Cái" : item.Unit));
+                }
+                return additions;
+            });
             var result = await Task.Run(() =>
-                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows, expectedExcelHash));
+                PrimaryWorkbookTransactionWriter.Append(path, docNo, rows, expectedExcelHash, newItems));
+            // A successful atomic Excel commit is the only point where an
+            // unknown SKU becomes an item in HISA. The new row has opening
+            // balance 0 and this receipt is applied exactly once below.
+            foreach (var material in newItems)
+            {
+                var product = State.Products.FirstOrDefault(p =>
+                    p.Sku.Equals(material.Sku, StringComparison.OrdinalIgnoreCase));
+                if (product is null)
+                {
+                    product = new InventoryItem
+                    {
+                        Sku = material.Sku,
+                        Name = material.Name,
+                        Barcode = material.Sku,
+                        Unit = material.Unit,
+                        Category = "Vật tư khác",
+                        Active = true,
+                        WarehouseStocks = State.Warehouses.ToDictionary(warehouse => warehouse, _ => 0d)
+                    };
+                    State.Products.Add(product);
+                }
+                else
+                {
+                    // Existing local-only, zero-stock or inactive SKU: restore it
+                    // after successful atomic Excel catalog registration.
+                    product.Active = true;
+                    product.Name = material.Name;
+                    product.Unit = material.Unit;
+                    foreach (var warehouse in State.Warehouses)
+                        product.WarehouseStocks.TryAdd(warehouse, 0);
+                }
+                if (!State.Categories.Contains(product.Category, StringComparer.OrdinalIgnoreCase))
+                    State.Categories.Add(product.Category);
+                if (!State.Units.Contains(product.Unit, StringComparer.OrdinalIgnoreCase))
+                    State.Units.Add(product.Unit);
+            }
+            if (newItems.Count > 0)
+                InitializeFilters();
             // Store the hash of the actual staged workbook, not the previous
             // Excel snapshot. The next write will detect any external save.
             State.PrimarySyncFingerprint = result.WorkbookHash;
@@ -1504,8 +1593,29 @@ public partial class MainWindow : Window
         await Task.CompletedTask;
     }
 
+    private void ToggleInventoryLabels_Click(object sender, RoutedEventArgs e)
+    {
+        var opening = LabelsPage.Visibility != Visibility.Visible;
+        LabelsPage.Visibility = opening ? Visibility.Visible : Visibility.Collapsed;
+        if (opening)
+        {
+            // The selected items from the material list can be printed in the
+            // same screen; existing label preview and SKU/barcode logic is reused.
+            foreach (var row in InventoryGrid.SelectedItems.OfType<InventoryRow>())
+                _labelSelection.Add(row.Sku);
+            RefreshLabels();
+            ShowToast("Chọn một hoặc nhiều vật tư và xem trước tem ngay trong danh sách.");
+        }
+    }
+
     private void PrintSelectedLabels_Click(object sender, RoutedEventArgs e)
     {
+        if (InventoryGrid.SelectedItems.Count > 0)
+        {
+            foreach (var row in InventoryGrid.SelectedItems.OfType<InventoryRow>())
+                _labelSelection.Add(row.Sku);
+            RefreshLabels();
+        }
         UpdateLabelSelectionFromRows();
         var selected = State.Products.Where(p => _labelSelection.Contains(p.Sku)).ToList();
         if (selected.Count == 0)
@@ -1796,32 +1906,17 @@ public partial class MainWindow : Window
 
             UpdateStatusText.Text = $"Đã tìm thấy {release.Tag}. Đang tải xuống và kiểm tra SHA-256…";
             var package = await WarehouseUpdateService.DownloadVerifiedAsync(release);
-            var hasUpdater = File.Exists(Path.Combine(AppContext.BaseDirectory, "HISA.Updater.exe"));
-            var canInstall = hasUpdater && WarehouseUpdateService.IsInstallFolderWritable(AppContext.BaseDirectory);
-            if (canInstall)
+            if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "HISA.Updater.exe")))
             {
-                UpdateStatusText.Text = $"Đã tải và xác minh thành công {release.Tag}. Chờ xác nhận cài đặt.";
-                ConfirmInApp(
-                    $"Đã tải xong bản {release.Tag} và xác minh SHA-256. " +
-                    "Bạn muốn HISA tự đóng, cập nhật im lặng rồi mở lại không? " +
-                    "Nếu chọn Không, tệp đã tải được giữ lại để cài thủ công.",
-                    accepted =>
-                    {
-                        if (accepted) _ = InstallDownloadedUpdateAsync(package);
-                        else ShowManualUpdatePackage(package);
-                    },
-                    "Có, cập nhật", "Không, thủ công");
+                UpdateStatusText.Text = "Bản HISA đang cài chưa có bộ tự cập nhật. Đã tải và xác minh ZIP, hãy dùng bộ cài mới một lần.";
+                ShowManualUpdatePackage(package);
+                return;
             }
-            else
-            {
-                UpdateStatusText.Text = $"Bản {release.Tag} đã tải và xác minh. " +
-                    "Thư mục cài đặt cần quyền quản trị hoặc thiếu HISA.Updater.exe; chỉ cài thủ công.";
-                ConfirmInApp(
-                    "Tệp tải về đã được xác minh. Máy này không đủ điều kiện cập nhật im lặng " +
-                    "(có thể đang cài trong Program Files). Mở vị trí tệp để cài bằng quyền quản trị?",
-                    accepted => { if (accepted) ShowManualUpdatePackage(package); },
-                    "Mở tệp tải về", "Để sau");
-            }
+            // One-click flow: a deliberate press initiates download, verified
+            // update, automatic HISA shutdown and relaunch. Windows may still
+            // request an administrator approval (UAC) for Program Files.
+            UpdateStatusText.Text = $"Đã xác minh SHA-256 bản {release.Tag}. Đang cài và mở lại HISA…";
+            await InstallDownloadedUpdateAsync(package);
         }
         catch (Exception ex)
         {

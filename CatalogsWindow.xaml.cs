@@ -12,6 +12,7 @@ public partial class CatalogsWindow : Window
     private readonly Dictionary<string, TextBox> _inputs;
 
     public List<string> Warehouses => _values["warehouses"].ToList();
+    public List<string> Categories => _values["categories"].ToList();
     public List<string> Units => _values["units"].ToList();
     public List<string> Departments => _values["departments"].ToList();
     public List<string> Recipients => _values["recipients"].ToList();
@@ -23,12 +24,13 @@ public partial class CatalogsWindow : Window
         _values = new Dictionary<string, ObservableCollection<string>>
         {
             ["warehouses"] = new(state.Warehouses),
+            ["categories"] = new(state.Categories.Concat(state.Products.Select(product => product.Category)).Where(category => !string.IsNullOrWhiteSpace(category)).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(category => category, StringComparer.CurrentCultureIgnoreCase)),
             ["units"] = new(state.Units),
             ["departments"] = new(state.Departments),
             ["recipients"] = new(state.Recipients)
         };
-        _lists = new Dictionary<string, ListBox> { ["warehouses"] = WarehouseList, ["units"] = UnitList, ["departments"] = DepartmentList, ["recipients"] = RecipientList };
-        _inputs = new Dictionary<string, TextBox> { ["warehouses"] = WarehouseInput, ["units"] = UnitInput, ["departments"] = DepartmentInput, ["recipients"] = RecipientInput };
+        _lists = new Dictionary<string, ListBox> { ["warehouses"] = WarehouseList, ["categories"] = CategoryList, ["units"] = UnitList, ["departments"] = DepartmentList, ["recipients"] = RecipientList };
+        _inputs = new Dictionary<string, TextBox> { ["warehouses"] = WarehouseInput, ["categories"] = CategoryInput, ["units"] = UnitInput, ["departments"] = DepartmentInput, ["recipients"] = RecipientInput };
         foreach (var (key, list) in _lists) list.ItemsSource = _values[key];
     }
 
@@ -66,6 +68,11 @@ public partial class CatalogsWindow : Window
         if (key == "warehouses" && _state.PendingMovements.Any(movement => movement.Status == "Chờ xác nhận" && (movement.Warehouse == selected || movement.ToWarehouse == selected)))
         {
             this.NotifyInline($"Kho {selected} đang được dùng trong phiếu chờ. Hãy xác nhận hoặc hủy các phiếu đó trước.");
+            return;
+        }
+        if (key == "categories" && _state.Products.Any(product => product.Category.Equals(selected, StringComparison.OrdinalIgnoreCase)))
+        {
+            this.NotifyInline($"Phân loại {selected} vẫn đang được sử dụng. Chuyển vật tư sang phân loại khác trước khi xóa.");
             return;
         }
         if (key == "units" && _state.Products.Any(product => product.Unit.Equals(selected, StringComparison.OrdinalIgnoreCase)))

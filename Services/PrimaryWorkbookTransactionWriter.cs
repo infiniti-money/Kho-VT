@@ -19,6 +19,8 @@ public static class PrimaryWorkbookTransactionWriter
 {
     public sealed record Input(DateOnly Date, string Type, string Sku, double Quantity,
         string GiaoNhan, string Note);
+    /// <summary>A new SKU verified against the separate reference workbook.</summary>
+    public sealed record CatalogInput(string Sku, string Name, string Unit);
     public sealed record Result(int FirstRow, int RowCount, string BackupPath, string WorkbookHash);
 
     private static readonly XNamespace M = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
@@ -29,7 +31,8 @@ public static class PrimaryWorkbookTransactionWriter
     private const int FirstDataRow = 5;
 
     public static Result Append(string workbookPath, string docNo, IReadOnlyList<Input> lines,
-        string? expectedWorkbookHash = null)
+        string? expectedWorkbookHash = null,
+        IReadOnlyList<CatalogInput>? newCatalogItems = null)
     {
         if (string.IsNullOrWhiteSpace(docNo) || docNo.Length > 70 ||
             docNo.Any(ch => !char.IsLetterOrDigit(ch) && ch is not '-' and not '_'))
@@ -55,9 +58,26 @@ public static class PrimaryWorkbookTransactionWriter
         if (profile.MissingProtectedFormulas > 0)
             throw new InvalidDataException("Workbook bị thiếu công thức. Dừng ghi để bảo vệ công thức trong KHO.xlsx.");
         var knownSkus = PrimaryWorkbookReader.ReadStocks(path);
+        var requested = new Dictionary<string, CatalogInput>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in newCatalogItems ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(item.Sku) || item.Sku.Length > 130 ||
+                string.IsNullOrWhiteSpace(item.Name) || item.Name.Length > 500 ||
+                string.IsNullOrWhiteSpace(item.Unit) || item.Unit.Length > 80)
+                throw new InvalidDataException("Mã, tên hoặc đơn vị vật tư mới không hợp lệ.");
+            if (!requested.TryAdd(item.Sku.Trim(), item))
+                throw new InvalidDataException($"Mã vật tư mới {item.Sku} bị trùng.");
+        }
         foreach (var line in lines)
-            if (!knownSkus.ContainsKey(line.Sku.Trim()))
-                throw new InvalidDataException($"Mã vật tư {line.Sku} chưa có trong sheet Danh mục; không ghi phiếu.");
+            if (!knownSkus.ContainsKey(line.Sku.Trim()) &&
+                (line.Type != "Nhập" || !requested.ContainsKey(line.Sku.Trim())))
+                throw new InvalidDataException($"Mã vật tư {line.Sku} chưa có trong sheet Danh mục hoặc chưa được xác nhận từ file đối chiếu; không ghi phiếu.");
+        // Never add unrelated catalog entries to an otherwise valid receipt.
+        foreach (var item in requested.Values)
+            if (!lines.Any(line => line.Type == "Nhập" &&
+                line.Sku.Trim().Equals(item.Sku.Trim(), StringComparison.OrdinalIgnoreCase)) ||
+                knownSkus.ContainsKey(item.Sku.Trim()))
+                throw new InvalidDataException("Danh mục mới có mã không thuộc phiếu hoặc đã tồn tại.");
 
         string temp = Path.Combine(Path.GetDirectoryName(path)!,
             "." + Path.GetFileName(path) + ".HISA-" + Guid.NewGuid().ToString("N") + ".tmp");
@@ -113,6 +133,47 @@ public static class PrimaryWorkbookTransactionWriter
                     currentLast, occupiedEnd, lines.Count);
                 var changedParts = PrimaryWorkbookTableExpander.Prepare(
                     originalZip, sheetEntry, document, currentLast, targetLast);
+                if (requested.Count > 0)
+                {
+                    // The stock catalog has a preformatted fixed 4..900 input
+                    // range. Only blank A/B/C/D may be filled; existing E/F/G/I/J/K
+                    // formulas, other sheets and all external links are protected.
+                    var catalogEntry = ResolveSheet(originalZip, "Danh mục");
+                    if (!changedParts.TryGetValue(catalogEntry, out var catalog))
+                        catalog = LoadXml(originalZip, catalogEntry);
+                    var catalogRows = catalog.Descendants(M + "sheetData").Single()
+                        .Elements(M + "row")
+                        .ToDictionary(x => (int?)x.Attribute("r") ?? 0);
+                    int lastBusinessRow = Enumerable.Range(4, 897)
+                        .Where(index => catalogRows.TryGetValue(index, out var row) &&
+                            !IsBlank(row, "A" + index, sharedStrings))
+                        .DefaultIfEmpty(3).Max();
+                    foreach (var newItem in requested.Values.OrderBy(item => item.Sku,
+                                 StringComparer.OrdinalIgnoreCase))
+                    {
+                        var targetRow = ++lastBusinessRow;
+                        if (targetRow > 900 || !catalogRows.TryGetValue(targetRow, out var catRow))
+                            throw new InvalidDataException(
+                                "Sheet Danh mục không còn ô nhập liệu trống có công thức hợp lệ (giới hạn dòng 900). Không ghi.");
+                        foreach (var col in new[] { "F", "G", "I", "J", "K" })
+                            if (Cell(catRow, col + targetRow)?.Element(M + "f") is null)
+                                throw new InvalidDataException($"Thiếu công thức {col}{targetRow} trong Danh mục.");
+                        foreach (var col in new[] { "A", "B", "C", "D" })
+                        {
+                            if (!IsBlank(catRow, col + targetRow, sharedStrings))
+                                throw new InvalidDataException($"Ô {col}{targetRow} của Danh mục không trống; không ghi đè.");
+                            // Excel may omit empty <c> elements even inside a fully
+                            // formatted range. Create only missing input cells,
+                            // in worksheet column order, never the formula cells.
+                            EnsureCatalogCell(catRow, col + targetRow);
+                        }
+                        SetString(catRow, "A" + targetRow, newItem.Sku.Trim());
+                        SetString(catRow, "B" + targetRow, newItem.Name.Trim());
+                        SetString(catRow, "C" + targetRow, newItem.Unit.Trim());
+                        SetNumber(catRow, "D" + targetRow, 0); // Opening stock: never double count the receipt.
+                    }
+                    changedParts[catalogEntry] = catalog;
+                }
                 rows = sheetData.Elements(M + "row")
                     .ToDictionary(x => (int?)x.Attribute("r") ?? 0);
                 if (targetLast - (occupiedEnd + lines.Count) < PrimaryWorkbookTableExpander.MinimumSpareRows)
@@ -259,9 +320,30 @@ public static class PrimaryWorkbookTransactionWriter
         var cell = Cell(row, address);
         return cell?.Element(M + "f") is null && string.IsNullOrWhiteSpace(CellText(cell, strings));
     }
+    private static void EnsureCatalogCell(XElement row, string address)
+    {
+        if (Cell(row, address) is not null) return;
+        var cell = new XElement(M + "c", new XAttribute("r", address));
+        var column = address[0];
+        var following = row.Elements(M + "c")
+            .FirstOrDefault(existing => ((string?)existing.Attribute("r")) is string at &&
+                at.Length > 0 && at[0] > column);
+        if (following is null) row.Add(cell);
+        else following.AddBeforeSelf(cell);
+    }
+
+    private static void EnsureInputCell(XElement row, string address)
+    {
+        var cell = Cell(row, address);
+        if (cell is null) throw new InvalidDataException("Ô " + address + " không có định dạng.");
+        if (cell.Element(M + "f") is not null)
+            throw new InvalidDataException("Ô " + address + " có công thức. Từ chối ghi.");
+    }
+
     private static void SetNumber(XElement row, string address, double value)
     {
-        var cell = Cell(row, address) ?? throw new InvalidDataException("Ô " + address + " không có định dạng.");
+        EnsureInputCell(row, address);
+        var cell = Cell(row, address)!;
         cell.Attribute("t")?.Remove();
         cell.Element(M + "is")?.Remove();
         cell.Element(M + "v")?.Remove();
@@ -269,7 +351,8 @@ public static class PrimaryWorkbookTransactionWriter
     }
     private static void SetString(XElement row, string address, string value)
     {
-        var cell = Cell(row, address) ?? throw new InvalidDataException("Ô " + address + " không có định dạng.");
+        EnsureInputCell(row, address);
+        var cell = Cell(row, address)!;
         cell.SetAttributeValue("t", "inlineStr");
         cell.Element(M + "v")?.Remove();
         cell.Element(M + "is")?.Remove();

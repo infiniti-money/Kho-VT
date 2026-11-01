@@ -7,16 +7,15 @@ var chat = XDocument.Load(chatFile);
 XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
 string? Name(XElement e) => (string?)e.Attribute(x + "Name");
 var required = new[] {
-    "NavDashboard", "NavInventory", "NavQuickSearch", "NavMovement",
-    "NavPending", "NavRequests", "NavReplenishment", "NavNegativeStock",
-    "NavReports", "NavAudit", "NavLabels", "NavPrintTemplates",
-    "NavCatalogs", "NavSettings", "NavSoftwareInfo", "NavAi"
+    "NavDashboard", "NavAi", "NavInventory", "NavMovement",
+    "NavPending", "NavReplenishment", "NavReports", "NavAudit",
+    "NavPrintTemplates", "NavCatalogs", "NavSettings"
 };
 var sidebar = main.Descendants().Where(el => el.Name.LocalName == "Button")
     .Where(el => Name(el)?.StartsWith("Nav", StringComparison.Ordinal) == true).ToList();
 if (sidebar.Count != required.Length ||
     !sidebar.Select(Name).ToHashSet().SetEquals(required))
-    throw new InvalidOperationException("Flat sidebar must show all 16 top-level functions exactly once.");
+    throw new InvalidOperationException("Flat sidebar must show 11 core functions exactly once.");
 
 foreach (var button in sidebar)
 {
@@ -35,10 +34,9 @@ if (dashboard.Name.LocalName != "ScrollViewer")
     throw new InvalidOperationException("Dashboard should be scrollable on compact screens.");
 var dashboardButtons = dashboard.Descendants().Where(el => el.Name.LocalName == "Button").ToList();
 var mainActions = new HashSet<string> {
-    "NavInventory_Click", "NavMovement_Click", "NavQuickSearch_Click",
-    "NavPending_Click", "NavRequests_Click", "NavReplenishment_Click",
-    "NavNegativeStock_Click", "NavReports_Click", "NavAudit_Click",
-    "NavLabels_Click", "NavPrintTemplates_Click", "NavSettings_Click"
+    "NavInventory_Click", "NavMovement_Click", "NavPending_Click",
+    "NavReplenishment_Click", "NavReports_Click", "NavAudit_Click",
+    "NavPrintTemplates_Click", "NavSettings_Click"
 };
 foreach (var action in mainActions)
     if (!dashboardButtons.Any(el => (string?)el.Attribute("Click") == action))
@@ -81,4 +79,68 @@ if (cs.Contains("NavGroup_Expanded", StringComparison.Ordinal) ||
     cs.Contains("SidebarModuleGroups.ModuleFor", StringComparison.Ordinal))
     throw new InvalidOperationException("Obsolete accordion menu behavior remains.");
 
-Console.WriteLine("PASS: 16 flat navigations, 12 homepage actions, secure updater, consented An hands-free and all KPI bindings.");
+var navOrder = sidebar.Select(Name).ToArray();
+if (navOrder[0] != "NavDashboard" || navOrder[1] != "NavAi")
+    throw new InvalidOperationException("An must be the second page after the homepage.");
+foreach (var retired in new[] { "NavQuickSearch", "NavNegativeStock",
+    "NavRequests", "NavLabels", "NavSoftwareInfo" })
+    if (main.Descendants().Any(el => Name(el) == retired))
+        throw new InvalidOperationException("Retired standalone navigation still exists: " + retired);
+
+var inventory = main.Descendants().Single(el => Name(el) == "InventoryPage");
+var inlineLabels = inventory.Descendants().Single(el => Name(el) == "LabelsPage");
+if ((string?)inlineLabels.Attribute("Visibility") != "Collapsed" ||
+    main.Descendants().Count(el => Name(el) == "LabelsPage") != 1)
+    throw new InvalidOperationException("Label print/preview must be embedded in the inventory.");
+if (!inventory.Descendants().Any(el => (string?)el.Attribute("Click") == "ToggleInventoryLabels_Click"))
+    throw new InvalidOperationException("Inventory cannot reveal barcode print/preview.");
+var inventoryTabs = main.Descendants().Single(el => Name(el) == "InventoryWorkspaceTabs");
+if (inventoryTabs.Elements().Count(el => el.Name.LocalName == "TabItem") != 1)
+    throw new InvalidOperationException("Separate barcode page still exists.");
+
+var reports = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "DetailedReportsWindow.xaml"));
+if (reports.Descendants().Count(el => Name(el) == "SkuFilterBox") != 1)
+    throw new InvalidOperationException("Detailed reports have no multi-SKU input.");
+
+var codes = HisaWarehouse.Services.MaterialCodeFilter.Parse(" vt001,VT002 VT003,,  vt001\tVT004\nVT005 ");
+if (codes.Count != 5 || !codes.Contains("VT001") || !codes.Contains("vt005") ||
+    !HisaWarehouse.Services.MaterialCodeFilter.Matches(codes, "vt002") ||
+    HisaWarehouse.Services.MaterialCodeFilter.Matches(codes, "vt0021"))
+    throw new InvalidOperationException("Multi-SKU exact matching, mixed case and delimiters failed.");
+if (!HisaWarehouse.Services.MaterialCodeFilter.Matches(
+    HisaWarehouse.Services.MaterialCodeFilter.Parse(""), "VT001"))
+    throw new InvalidOperationException("Empty multi-SKU filter should show all products.");
+
+foreach (var click in new[] { "QuickReceipt_Click", "QuickShipment_Click" })
+    if (dashboardButtons.Count(el => (string?)el.Attribute("Click") == click) != 1)
+        throw new InvalidOperationException("Homepage missing independent quick receipt/shipment action: " + click);
+var catalog = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "CatalogsWindow.xaml"));
+if (!catalog.Descendants().Any(el => el.Name.LocalName == "TabItem" &&
+    (string?)el.Attribute("Header") == "Phân loại hàng hóa") ||
+    catalog.Descendants().Count(el => Name(el) == "CategoryInput") != 1 ||
+    catalog.Descendants().Count(el => Name(el) == "CategoryList") != 1)
+    throw new InvalidOperationException("Editable product classification catalog is not available.");
+if (!catalog.Descendants().Any(el => el.Name.LocalName == "TabItem" &&
+    (string?)el.Attribute("Header") == "Người nhận / gửi"))
+    throw new InvalidOperationException("Recipient/sender catalog label is incorrect.");
+var movement = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "MovementWindow.xaml"));
+if (!movement.Descendants().Any(el => Name(el) == "PartnerLabel" &&
+    (string?)el.Attribute("Text") == "NGƯỜI NHẬN / GỬI"))
+    throw new InvalidOperationException("Receipt/shipment partner label has not been updated.");
+var updaterSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "Services", "WarehouseUpdateService.cs"));
+if (!updaterSource.Contains("requiresElevation ? \"runas\" : \"\"", StringComparison.Ordinal))
+    throw new InvalidOperationException("One-click updater should request Windows UAC when necessary.");
+var checkStart = cs.IndexOf("private async void CheckUpdate_Click", StringComparison.Ordinal);
+var installStart = cs.IndexOf("private async Task InstallDownloadedUpdateAsync", StringComparison.Ordinal);
+if (checkStart < 0 || installStart <= checkStart)
+    throw new InvalidOperationException("One-click updater handler missing.");
+var checkBody = cs[checkStart..installStart];
+if (checkBody.Contains("ConfirmInApp(", StringComparison.Ordinal) ||
+    !checkBody.Contains("await InstallDownloadedUpdateAsync(package)", StringComparison.Ordinal))
+    throw new InvalidOperationException("Update button still needs an extra approval click.");
+var receiptCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "MovementWindow.xaml.cs"));
+if (!receiptCode.Contains("TryResolveNewReceiptMaterial", StringComparison.Ordinal) ||
+    !receiptCode.Contains("ReferenceMaterialLookup.Read", StringComparison.Ordinal))
+    throw new InvalidOperationException("Unknown SKU is not searched in the reference material catalog.");
+Console.WriteLine("PASS: 11 flat functions, An second, quick receipt/shipment, product categories, sender/recipient, one-click UAC updater, reference SKU lookup, inline labels and multi-SKU reports.");

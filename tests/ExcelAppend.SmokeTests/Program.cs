@@ -399,6 +399,67 @@ try
         Check(true, "reject backup when shared-string indexes match but decoded SKUs differ");
     }
 
+    // A new receipt code may be resolved from a separate reference catalog.
+    // Add it to the same Excel Danh mục and Nhập Xuất atomically, never
+    // changing formula cells or nonbusiness worksheets.
+    File.Delete(file);
+    BuildWorkbook();
+    var newReceipt = new[] {
+        new PrimaryWorkbookTransactionWriter.Input(new DateOnly(2026, 11, 1),
+            "Nhập", "VT0003", 7, "Người gửi", "Mã mới đối chiếu")
+    };
+    var catalogInput = new[] {
+        new PrimaryWorkbookTransactionWriter.CatalogInput("VT0003", "Bu lông mới", "Bộ")
+    };
+    var newBefore = PrimaryWorkbookReconciler.Fingerprint(file);
+    var appended = PrimaryWorkbookTransactionWriter.Append(
+        file, "PN-20261101-REF", newReceipt, newBefore, catalogInput);
+    Check(File.Exists(appended.BackupPath) &&
+          appended.WorkbookHash != newBefore,
+        "new SKU receipt backs up original workbook and changes the fingerprint");
+    using (var resultZip = ZipFile.OpenRead(file))
+    {
+        var cat = Sheet(resultZip, "xl/worksheets/sheet1.xml");
+        var tx = Sheet(resultZip, "xl/worksheets/sheet2.xml");
+        Check(Text(Cell(cat, "A6")) == "VT0003" &&
+              string.Concat(Cell(cat, "B6").Descendants(m + "t").Select(t => t.Value)) == "Bu lông mới" &&
+              string.Concat(Cell(cat, "C6").Descendants(m + "t").Select(t => t.Value)) == "Bộ" &&
+              Text(Cell(cat, "D6")) == "0",
+            "new product code, name and unit written only to blank catalog input cells with opening stock zero");
+        Check(new[] { "F", "G", "I", "J", "K" }.All(col =>
+            Cell(cat, col + "6").Element(m + "f") is not null),
+            "new catalog row preserves every protected stock formula");
+        Check(Text(Cell(tx, "D7")) == "VT0003" && Text(Cell(tx, "G7")) == "7" &&
+              Text(Cell(tx, "L7")).Contains("[HISA:PN-20261101-REF]"),
+            "new product receipt and registration committed in one workbook");
+        using var other = resultZip.GetEntry("xl/worksheets/sheet3.xml")!.Open();
+        Check(SHA256.HashData(other).SequenceEqual(original), "new SKU does not change other worksheets");
+    }
+    try
+    {
+        PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-REF2",
+            newReceipt, appended.WorkbookHash, catalogInput);
+        throw new Exception("Duplicate new SKU registered again.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(true, "a known catalog SKU cannot be registered twice");
+    }
+    File.Delete(file);
+    BuildWorkbook();
+    var newRejected = SHA256.HashData(File.ReadAllBytes(file));
+    try
+    {
+        PrimaryWorkbookTransactionWriter.Append(file, "PN-20261101-UNKNOWN",
+            newReceipt, PrimaryWorkbookReconciler.Fingerprint(file));
+        throw new Exception("New SKU without reference confirmation was accepted.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(SHA256.HashData(File.ReadAllBytes(file)).SequenceEqual(newRejected),
+            "unknown SKU without reference catalog is rejected without changing Excel");
+    }
+
     // An can only edit two non-formula catalog input columns after an exact
     // user command and an explicit preview/approval. Check isolated workbook
     // modification, backup, stale hash rejection and untouched other sheet.

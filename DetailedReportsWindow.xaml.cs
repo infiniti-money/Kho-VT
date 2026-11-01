@@ -39,11 +39,13 @@ public partial class DetailedReportsWindow : Window
     private List<InventoryTransaction> GetFiltered()
     {
         var search = SearchBox.Text.Trim();
+        var skuCodes = MaterialCodeFilter.Parse(SkuFilterBox.Text);
         var type = (TypeFilter.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Tất cả loại";
         var warehouse = WarehouseFilter.SelectedItem?.ToString() ?? "Tất cả kho";
         DateOnly? from = FromDate.SelectedDate is DateTime fromDate ? DateOnly.FromDateTime(fromDate) : null;
         DateOnly? to = ToDate.SelectedDate is DateTime toDate ? DateOnly.FromDateTime(toDate) : null;
         return _state.Transactions
+            .Where(transaction => MaterialCodeFilter.Matches(skuCodes, transaction.Sku))
             .Where(transaction => type == "Tất cả loại" || transaction.Type == type)
             .Where(transaction => warehouse == "Tất cả kho" || (transaction.Type == "Điều chuyển"
                 ? transaction.FromWarehouse == warehouse || transaction.ToWarehouse == warehouse
@@ -76,6 +78,7 @@ public partial class DetailedReportsWindow : Window
     private void ClearFilters_Click(object sender, RoutedEventArgs e)
     {
         SearchBox.Clear();
+        SkuFilterBox.Clear();
         TypeFilter.SelectedIndex = 0;
         WarehouseFilter.SelectedIndex = 0;
         FromDate.SelectedDate = null;
