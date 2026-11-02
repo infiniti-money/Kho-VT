@@ -753,6 +753,40 @@ try
     {
         Check(true, "print requires positive copy count");
     }
+    var excelOptions = ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "A5", Landscape = true, FitToPage = false, PrintScalePercent = 135,
+        MarginTopMm = 5, MarginBottomMm = 6, MarginLeftMm = 7, MarginRightMm = 8
+    });
+    Check(excelOptions.PaperSize == 11 && excelOptions.Orientation == 2 &&
+          !excelOptions.FitToPage && excelOptions.ScalePercent == 135 &&
+          Math.Abs(excelOptions.TopPoints - 5 * 72d / 25.4) < 0.001,
+          "Excel PDF layout uses A5 landscape, millimeter margins and explicit 135% scale");
+    var excelFit = ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate
+    { PaperName = "A4", FitToPage = true });
+    Check(excelFit.PaperSize == 9 && excelFit.Orientation == 1 && excelFit.FitToPage,
+          "Excel PDF fit-width defaults to A4 portrait without touching source workbook");
+    Check(ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "A6" }).PaperSize == 70 &&
+          ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "Letter" }).PaperSize == 1,
+          "Excel PDF maps A6 and Letter to Excel-specific paper identifiers");
+    try
+    {
+        ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "58mm" });
+        throw new Exception("Unsupported receipt printer size was accepted for Excel COM.");
+    }
+    catch (NotSupportedException)
+    {
+        Check(true, "Excel PDF rejects unsupported driver-specific receipt media instead of silently printing wrong size");
+    }
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PrintScalePercent = 201 });
+        throw new Exception("Accepted invalid oversized print scale.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print scale is limited to 30% through 200%");
+    }
     Console.WriteLine($"SUCCESS {checks} Excel and print page setup regression checks.");
 }
 finally
