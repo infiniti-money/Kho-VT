@@ -1851,7 +1851,7 @@ public partial class MainWindow : Window
             flow.Blocks.Add(new Paragraph(new Run(template.Organization)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = 12, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 3) });
         if (!string.IsNullOrWhiteSpace(template.HeaderNote))
             flow.Blocks.Add(new Paragraph(new Run(template.HeaderNote)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = 10, Foreground = Brushes.DimGray, Margin = new Thickness(0, 0, 0, 15) });
-        flow.Blocks.Add(new Paragraph(new Run(template.Title)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = template.FontSize + 8, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
+        flow.Blocks.Add(new Paragraph(new Run(template.Title)) { TextAlignment = PrintTemplateLayout.Alignment(template), FontSize = (template.FontSize + 8) * template.PrintScalePercent / 100d, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 14) });
     }
 
     private static FlowDocument NewPrintDocument() => new()
@@ -1895,8 +1895,10 @@ public partial class MainWindow : Window
         var widths = narrow ? new[] { 4d, 1d } : new[] { 0.5d, 1.2d, 3.2d, 0.9d, 1.1d, 1.1d };
         foreach (var width in widths) table.Columns.Add(new TableColumn { Width = new GridLength(width, GridUnitType.Star) });
         var group = new TableRowGroup();
+        TableCell Cell(string value, bool headerCell = false) =>
+            MakeCell(value, headerCell, template.PrintScalePercent / 100d);
         var header = new TableRow { Background = new SolidColorBrush(Color.FromRgb(236, 241, 247)), FontWeight = FontWeights.Bold };
-        foreach (var text in narrow ? new[] { "Vật tư", "SL" } : new[] { "STT", "Mã hàng", "Tên vật tư", "ĐVT", "Số lượng", "Ghi chú" }) header.Cells.Add(MakeCell(text, true));
+        foreach (var text in narrow ? new[] { "Vật tư", "SL" } : new[] { "STT", "Mã hàng", "Tên vật tư", "ĐVT", "Số lượng", "Ghi chú" }) header.Cells.Add(Cell(text, true));
         group.Rows.Add(header);
         var i = 0;
         foreach (var item in records)
@@ -1905,17 +1907,17 @@ public partial class MainWindow : Window
             i++;
             if (narrow)
             {
-                row.Cells.Add(MakeCell(item.Sku + "\n" + item.ItemName));
-                row.Cells.Add(MakeCell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
+                row.Cells.Add(Cell(item.Sku + "\n" + item.ItemName));
+                row.Cells.Add(Cell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
             }
             else
             {
-                row.Cells.Add(MakeCell(i.ToString(CultureInfo.InvariantCulture)));
-                row.Cells.Add(MakeCell(item.Sku));
-                row.Cells.Add(MakeCell(item.ItemName));
-                row.Cells.Add(MakeCell(item.Unit));
-                row.Cells.Add(MakeCell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
-                row.Cells.Add(MakeCell(""));
+                row.Cells.Add(Cell(i.ToString(CultureInfo.InvariantCulture)));
+                row.Cells.Add(Cell(item.Sku));
+                row.Cells.Add(Cell(item.ItemName));
+                row.Cells.Add(Cell(item.Unit));
+                row.Cells.Add(Cell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
+                row.Cells.Add(Cell(""));
             }
             group.Rows.Add(row);
         }
@@ -1923,7 +1925,7 @@ public partial class MainWindow : Window
         return table;
     }
 
-    private static TableCell MakeCell(string text, bool header = false) => new(new Paragraph(new Run(text)) { Margin = new Thickness(2), FontSize = 9 })
+    private static TableCell MakeCell(string text, bool header = false, double scale = 1) => new(new Paragraph(new Run(text)) { Margin = new Thickness(2), FontSize = 9 * scale })
     {
         BorderBrush = Brushes.Gray,
         BorderThickness = new Thickness(.5),
@@ -1933,6 +1935,7 @@ public partial class MainWindow : Window
 
     private static Block CreateSignatureBlock(PrintTemplate template)
     {
+        var printScale = template.PrintScalePercent / 100d;
         if (PrintPageSetup.Resolve(template).WidthMm < 120)
         {
             var section = new Section { Margin = new Thickness(0, 14, 0, 0) };
@@ -1940,7 +1943,7 @@ public partial class MainWindow : Window
                 section.Blocks.Add(new Paragraph(new Run(signer + "\n\n(Ký, ghi rõ họ tên)"))
                 {
                     TextAlignment = TextAlignment.Center,
-                    FontSize = 9,
+                    FontSize = 9 * printScale,
                     FontWeight = FontWeights.SemiBold,
                     Margin = new Thickness(0, 8, 0, 16)
                 });
@@ -1953,7 +1956,7 @@ public partial class MainWindow : Window
         var row = new TableRow();
         foreach (var title in new[] { template.Signer1, template.Signer2, template.Signer3 })
         {
-            var paragraph = new Paragraph(new Run(title + "\n\n\n\n(Ký, ghi rõ họ tên)")) { TextAlignment = TextAlignment.Center, FontSize = 9, FontWeight = FontWeights.SemiBold };
+            var paragraph = new Paragraph(new Run(title + "\n\n\n\n(Ký, ghi rõ họ tên)")) { TextAlignment = TextAlignment.Center, FontSize = 9 * printScale, FontWeight = FontWeights.SemiBold };
             row.Cells.Add(new TableCell(paragraph) { BorderThickness = new Thickness(0), Padding = new Thickness(3) });
         }
         table.RowGroups.Add(new TableRowGroup { Rows = { row } });
