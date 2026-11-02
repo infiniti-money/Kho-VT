@@ -130,7 +130,7 @@
                     <Border Grid.Row="1" Background="White" BorderBrush="#CAD5E3" BorderThickness="1">
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                            <FlowDocumentPageViewer x:Name="PreviewViewer" Zoom="75" IsToolBarVisible="False"/>
+                            <FlowDocumentPageViewer x:Name="PreviewViewer" Zoom="75"/>
                             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,6">
                                 <Button Content="◀ Trang trước" Command="NavigationCommands.PreviousPage" CommandTarget="{Binding ElementName=PreviewViewer}" Padding="12,7" Margin="0,0,8,0"/>
                                 <Button Content="Trang sau ▶" Command="NavigationCommands.NextPage" CommandTarget="{Binding ElementName=PreviewViewer}" Padding="12,7"/>
