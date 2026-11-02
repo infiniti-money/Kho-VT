@@ -90,6 +90,7 @@ public partial class MainWindow : Window
             ChartsWebView.CoreWebView2.WebMessageReceived += ChartsWebMessageReceived;
 
             _state = await InventoryStore.LoadOrSeedAsync(StorageWebView.CoreWebView2);
+            LoadMicrophonePreferences();
             InitializeFilters();
             RenderAll();
             _isReady = true;
