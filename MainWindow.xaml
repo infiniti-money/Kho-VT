@@ -239,6 +239,9 @@
                         <Button Click="NavPending_Click" Style="{StaticResource SecondaryButton}" Margin="8,0,0,8" Padding="11,12" HorizontalContentAlignment="Left">
                             <StackPanel Orientation="Horizontal"><TextBlock Text="◷" FontSize="18" Foreground="#157F86" Width="26"/><TextBlock Text="Phiếu chờ xác nhận" VerticalAlignment="Center" FontSize="11.5"/></StackPanel>
                         </Button>
+                        <Button Click="OpenZaloSchedules_Click" Style="{StaticResource SecondaryButton}" Margin="6,0,6,8" Padding="11,12" HorizontalContentAlignment="Left" ToolTip="Quét ảnh Zalo, chọn hợp đồng và lập phiếu chờ; lịch dự kiến không trừ tồn">
+                            <StackPanel Orientation="Horizontal"><TextBlock Text="▣" FontSize="18" Foreground="#157F86" Width="26"/><TextBlock Text="Lịch Zalo · Hợp đồng" VerticalAlignment="Center" FontSize="11.5"/></StackPanel>
+                        </Button>
                         <Button Click="NavReplenishment_Click" Style="{StaticResource SecondaryButton}" Margin="6,0,6,8" Padding="11,12" HorizontalContentAlignment="Left">
                             <StackPanel Orientation="Horizontal"><TextBlock Text="↥" FontSize="18" Foreground="#157F86" Width="26"/><TextBlock Text="Đề xuất nhập vật tư" VerticalAlignment="Center" FontSize="11.5"/></StackPanel>
                         </Button>
