@@ -47,7 +47,7 @@ public static class PrintTemplateLayout
         // For narrow receipt paper, do not force a 200-DIP-wide column.
         flow.ColumnWidth = page.ContentWidthDip;
         flow.FontFamily = new FontFamily(t.FontName);
-        flow.FontSize = t.FontSize;
+        flow.FontSize = t.FontSize * t.PrintScalePercent / 100d;
     }
 
     public static void ApplyTableCellPadding(Table table, PrintTemplate template)
@@ -55,7 +55,7 @@ public static class PrintTemplateLayout
         foreach (var group in table.RowGroups)
             foreach (var row in group.Rows)
                 foreach (var cell in row.Cells)
-                    cell.Padding = new Thickness(template.CellPadding);
+                    cell.Padding = new Thickness(template.CellPadding * template.PrintScalePercent / 100d);
     }
 
     public static FlowDocument Preview(PrintTemplate t)
@@ -67,7 +67,8 @@ public static class PrintTemplateLayout
                 flow.Blocks.Add(new Paragraph(new Run(line)) {
                     TextAlignment = Alignment(t),
                     FontWeight = line == t.HeaderNote ? FontWeights.Normal : FontWeights.Bold,
-                    FontSize = line == t.Title ? t.FontSize + 8 : t.FontSize + 1,
+                    FontSize = (line == t.Title ? t.FontSize + 8 : t.FontSize + 1) *
+                        t.PrintScalePercent / 100d,
                     Margin = new Thickness(0, 0, 0, line == t.Title ? 18 : 5) });
         flow.Blocks.Add(new Paragraph(new Run("Số phiếu: PN-0001                         Ngày: 31/10/2026"))
             { Margin = new Thickness(0, 5, 0, 10) });
