@@ -719,8 +719,49 @@ public partial class MainWindow : Window
         {
             if (!accepted || page.ProposedRequest is not MaterialRequest proposal) return;
             MaterialRequestService.Add(State, proposal);
-            _ = PersistAsync();
+            _ = PersistReplenishmentRequestAsync(proposal);
         });
+    }
+
+    private async Task PersistReplenishmentRequestAsync(MaterialRequest request)
+    {
+        if (await PersistMaterialRequestsToExcelAsync()) return;
+        State.MaterialRequests.Remove(request);
+        ShowToast("Yêu cầu bổ sung chưa được lưu; Excel chưa cập nhật.");
+    }
+
+    private async Task<bool> PersistMaterialRequestsToExcelAsync()
+    {
+        if (string.IsNullOrWhiteSpace(State.PrimaryExcelPath) ||
+            string.IsNullOrWhiteSpace(State.PrimarySyncFingerprint))
+        {
+            ShowToast("Hãy chọn và đồng bộ KHO.xlsx trước khi tạo hoặc duyệt phiếu yêu cầu.");
+            return false;
+        }
+        await _excelMovementWriteGate.WaitAsync();
+        Interlocked.Increment(ref _activeExcelCommits);
+        try
+        {
+            var result = await Task.Run(() => MaterialRequestWorkbookWriter.Upsert(
+                State.PrimaryExcelPath, State.MaterialRequests.ToArray(), State.PrimarySyncFingerprint));
+            State.PrimarySyncFingerprint = result.WorkbookHash;
+            State.PrimaryExcelSyncedWriteUtc = File.GetLastWriteTimeUtc(State.PrimaryExcelPath);
+            if (!await PersistAsync(false))
+                ShowToast("Excel đã ghi phiếu yêu cầu nhưng HISA chưa lưu cache. Đừng lập phiếu trùng; hãy đối chiếu bản sao lưu.");
+            else
+                ShowToast($"Đã cập nhật {result.RequestCount} phiếu trên sheet Phiếu yêu cầu. Tồn kho không thay đổi.");
+            return true;
+        }
+        catch (Exception error)
+        {
+            ShowToast("Không ghi được sheet Phiếu yêu cầu: " + error.Message);
+            return false;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _activeExcelCommits);
+            _excelMovementWriteGate.Release();
+        }
     }
 
     private async Task OpenMaterialRequestsAsync()
@@ -728,7 +769,8 @@ public partial class MainWindow : Window
         if (!CanOpenAnotherPage()) return;
         var page = new MaterialRequestsWindow(State)
         {
-            OpenChildPage = ShowRequestEditorChild
+            OpenChildPage = ShowRequestEditorChild,
+            PersistRequestsAsync = PersistMaterialRequestsToExcelAsync
         };
         ShowEmbeddedPage(page, "Phiếu yêu cầu vật tư",
             "Có thể chọn danh mục hoặc nhập tay; lưu/duyệt phiếu không tự thay đổi tồn kho", accepted =>
