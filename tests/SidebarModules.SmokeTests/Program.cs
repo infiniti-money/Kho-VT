@@ -249,4 +249,18 @@ if (!printCode.Contains("PageMediaSize", StringComparison.Ordinal) ||
     !printCode.Contains("PageOrientation", StringComparison.Ordinal) ||
     !printCode.Contains("CopyCount", StringComparison.Ordinal))
     throw new InvalidOperationException("Lệnh in không áp dụng cấu hình máy in hoặc khổ giấy.");
+foreach (var id in new[] { "PrintScaleBox", "FitToPageCheck", "ExcelPdfOverridesCheck" })
+    if (printTemplate.Descendants().Count(el => Name(el) == id) != 1)
+        throw new InvalidOperationException("Mẫu in thiếu tùy chọn tỷ lệ và cấu hình PDF Excel: " + id);
+var excelPdfSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "Services", "ExcelSlipTemplatePrinter.cs"));
+if (!excelPdfSource.Contains("ConfigureTemporaryPrintPage(print, pageOptions)", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("settings.FitToPagesWide = 1", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("book.Worksheets[\"Phiếu in\"]", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("book.Worksheets[\"Nhập Xuất\"]", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("bookObject).Close(false)", StringComparison.Ordinal))
+    throw new InvalidOperationException("PDF Excel phải chỉnh PageSetup trên bản sao, giữ worksheet và không lưu workbook.");
+if (!cs.Contains("template?.ApplyPageSetupToExcelPdf == true", StringComparison.Ordinal) ||
+    !cs.Contains("ExcelSlipPageSetup.ForTemplate(template)", StringComparison.Ordinal))
+    throw new InvalidOperationException("PDF Excel không có lựa chọn áp dụng thiết lập riêng.");
 Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");
