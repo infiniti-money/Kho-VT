@@ -91,6 +91,7 @@
                             <DataGridTextColumn Header="SKU" Binding="{Binding Plan.Sku}" Width="90"/>
                             <DataGridTextColumn Header="Tên vật tư" Binding="{Binding Plan.ItemName}" Width="160"/>
                             <DataGridTextColumn Header="SL" Binding="{Binding Plan.Quantity}" Width="75"/>
+                            <DataGridTextColumn Header="Trạng thái" Binding="{Binding Status}" Width="145"/>
                             <DataGridTextColumn Header="Đã lên phiếu chờ" Binding="{Binding Plan.PendingDocNo}" Width="130"/>
                             <DataGridTextColumn Header="Sửa lịch" Binding="{Binding Plan.DateRevision}" Width="75"/>
                         </DataGrid.Columns>
