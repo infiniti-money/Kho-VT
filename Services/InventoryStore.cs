@@ -94,6 +94,7 @@ public static class InventoryStore
         state.Transactions ??= [];
         state.PendingMovements ??= [];
         state.MaterialRequests ??= [];
+        state.ZaloPlans ??= [];
         state.ReferencePath ??= "";
         state.SourceAudit ??= new SourceAudit();
         foreach (var item in state.Products)
