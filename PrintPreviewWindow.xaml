@@ -22,7 +22,7 @@
             </Grid>
         </Border>
         <Border Grid.Row="1" Background="White" Margin="22" BorderBrush="#CFDDEA" BorderThickness="1" Padding="10">
-            <FlowDocumentPageViewer x:Name="PrintViewer" Zoom="78" IsToolBarVisible="False"/>
+            <FlowDocumentPageViewer x:Name="PrintViewer" Zoom="78"/>
         </Border>
     </Grid>
 </Window>
