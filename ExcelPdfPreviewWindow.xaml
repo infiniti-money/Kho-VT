@@ -11,7 +11,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel>
                     <TextBlock Text="XEM TRƯỚC PHIẾU IN TỪ EXCEL" Foreground="White" FontSize="19" FontWeight="Bold"/>
-                    <TextBlock Text="Mẫu gốc: sheet Phiếu in · PDF tạm, không sửa KHO.xlsx" Foreground="#C8E4EC" Margin="0,5,0,0" FontSize="11"/>
+                    <TextBlock x:Name="PageInfoText" Text="Mẫu gốc: sheet Phiếu in · PDF tạm, không sửa KHO.xlsx" Foreground="#C8E4EC" Margin="0,5,0,0" FontSize="11"/>
                 </StackPanel>
                 <Button Grid.Column="1" Content="Đóng" Click="Close_Click" Padding="17,8" VerticalAlignment="Center" Margin="0,0,10,0"/>
                 <Button Grid.Column="2" Content="In từ bản xem trước" Click="Print_Click" Padding="17,8"
