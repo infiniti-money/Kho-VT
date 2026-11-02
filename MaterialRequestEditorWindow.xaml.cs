@@ -35,7 +35,7 @@ public partial class MaterialRequestEditorWindow : Window, IWorkspaceDirtyPage
         InitializeComponent();
         _state = state;
         _type = type;
-        Heading.Text = type == "Yêu cầu cấp vật tư dự phòng" ? "Phiếu yêu cầu cấp vật tư dự phòng" : type;
+        Heading.Text = type;
         RecipientLabel.Text = type == "Yêu cầu nhập vật tư" ? "NHÀ CUNG CẤP / NGUỒN" : "NGƯỜI NHẬN";
         DateBox.SelectedDate = DateTime.Today;
         DepartmentBox.ItemsSource = state.Departments;
@@ -72,7 +72,7 @@ public partial class MaterialRequestEditorWindow : Window, IWorkspaceDirtyPage
             var sku = ManualSkuBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(unit))
             {
-                this.NotifyInline("Nhập tên vật tư và đơn vị tính của dòng yêu cầu dự phòng.");
+                this.NotifyInline("Nhập tên vật tư và đơn vị tính của dòng yêu cầu.");
                 return;
             }
             if (sku.Length > 130 || name.Length > 300 || unit.Length > 80)
