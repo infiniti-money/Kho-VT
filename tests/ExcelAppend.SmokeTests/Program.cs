@@ -695,6 +695,49 @@ try
               xml.Descendants(m + "t").Any(x => x.Value == "Đã duyệt"),
               "request status upsert updates existing ID without duplicate rows");
     }
+    // A manually saved Excel material request must be visible when HISA
+    // explicitly reconciles. Import replaces request cache, not stock.
+    var importedRequests = MaterialRequestWorkbookReader.Read(file);
+    Check(importedRequests is { Count: 1 } &&
+          importedRequests[0].DocNo == request.DocNo &&
+          importedRequests[0].Status == "Đã duyệt" &&
+          importedRequests[0].Lines.Single().Quantity == 3,
+          "request worksheet reader retrieves saved request fields and lines");
+    var synchronizedState = new HisaWarehouse.InventoryState();
+    synchronizedState.Warehouses.Add("Kho tổng");
+    var requestSync = PrimaryWorkbookReconciler.Prepare(file, synchronizedState);
+    Check(requestSync.RequestsFromExcel is { Count: 1 } &&
+          requestSync.ChangedRequests == 1 &&
+          requestSync.Summary.Contains("Phiếu yêu cầu", StringComparison.Ordinal),
+          "Excel synchronization previews new material requests");
+    PrimaryWorkbookReconciler.Apply(requestSync, synchronizedState);
+    Check(synchronizedState.MaterialRequests.Count == 1 &&
+          synchronizedState.MaterialRequests[0].Status == "Đã duyệt" &&
+          synchronizedState.Products.Single(x => x.Sku == "VT0001").TotalStock ==
+              stockBeforeRequest["VT0001"].Current,
+          "Excel request import updates only request cache and never adds stock");
+    // Simulate an external Excel save changing only the request status.
+    using (var editZip = ZipFile.Open(file, ZipArchiveMode.Update))
+    {
+        var entry = editZip.GetEntry("xl/worksheets/sheet4.xml")!;
+        XDocument xml;
+        using (var stream = entry.Open()) xml = XDocument.Load(stream);
+        var status = Cell(xml, "J2").Descendants(m + "t").Single();
+        status.Value = "Hoàn thành";
+        entry.Delete();
+        var replaced = editZip.CreateEntry("xl/worksheets/sheet4.xml");
+        using var output = replaced.Open();
+        xml.Save(output);
+    }
+    var updatedRequestSync = PrimaryWorkbookReconciler.Prepare(file, synchronizedState);
+    Check(updatedRequestSync.ChangedRequests == 1,
+          "request reconciliation detects an Excel-only status edit");
+    PrimaryWorkbookReconciler.Apply(updatedRequestSync, synchronizedState);
+    Check(synchronizedState.MaterialRequests.Single().Status == "Hoàn thành" &&
+          synchronizedState.Products.Single(x => x.Sku == "VT0001").TotalStock ==
+              stockBeforeRequest["VT0001"].Current,
+          "manual Excel request change is imported without a duplicate inventory movement");
+
     try
     {
         MaterialRequestWorkbookWriter.Upsert(file, [request], sourceHash);
