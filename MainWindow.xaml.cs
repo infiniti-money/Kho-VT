@@ -1928,6 +1928,19 @@ public partial class MainWindow : Window
 
     private static Block CreateSignatureBlock(PrintTemplate template)
     {
+        if (PrintPageSetup.Resolve(template).WidthMm < 120)
+        {
+            var section = new Section { Margin = new Thickness(0, 14, 0, 0) };
+            foreach (var signer in new[] { template.Signer1, template.Signer2, template.Signer3 })
+                section.Blocks.Add(new Paragraph(new Run(signer + "\n\n(Ký, ghi rõ họ tên)"))
+                {
+                    TextAlignment = TextAlignment.Center,
+                    FontSize = 9,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 8, 0, 16)
+                });
+            return section;
+        }
         var table = new Table { CellSpacing = 0, Margin = new Thickness(0, 38, 0, 0) };
         table.Columns.Add(new TableColumn { Width = new GridLength(1, GridUnitType.Star) });
         table.Columns.Add(new TableColumn { Width = new GridLength(1, GridUnitType.Star) });
