@@ -38,6 +38,8 @@ void BuildWorkbook(bool missingFormula = false, bool overwriteFormulaWithText = 
         using var stream = entry.Open();
         data.Save(stream);
     }
+    Add("[Content_Types].xml", new XDocument(new XElement(
+        XNamespace.Get("http://schemas.openxmlformats.org/package/2006/content-types") + "Types")));
     Add("xl/workbook.xml", new XDocument(new XElement(m + "workbook",
         new XAttribute(XNamespace.Xmlns + "r", r.NamespaceName),
         new XElement(m + "sheets",
@@ -632,6 +634,72 @@ try
     Check(!AnCatalogEditService.TryParseCommand("Sửa công thức F4 thành 0", out _),
         "An never accepts a command to overwrite a formula");
 
+    // Request documents are recorded in an isolated sheet, not in stock ledger.
+    // Verify original inventory formulas, all unrelated ZIP parts and backups.
+    File.Delete(file);
+    BuildWorkbook();
+    var inventoryBeforeRequest = new Dictionary<string, byte[]>();
+    using (var original = ZipFile.OpenRead(file))
+    {
+        foreach (var entry in original.Entries.Where(x =>
+            x.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal) ||
+            x.FullName.StartsWith("xl/charts/", StringComparison.Ordinal)))
+        {
+            using var stream = entry.Open();
+            inventoryBeforeRequest[entry.FullName] = SHA256.HashData(stream);
+        }
+    }
+    var stockBeforeRequest = HisaWarehouse.Services.PrimaryWorkbookReader.ReadStocks(file);
+    var request = new HisaWarehouse.MaterialRequest
+    {
+        Id = "request-001", DocNo = "YC-CAP-20261102-001",
+        Type = "Yêu cầu cấp vật tư", Requester = "Thủ kho",
+        Status = "Chờ xử lý", Date = new DateOnly(2026, 11, 2),
+        Lines = [new() { Sku = "VT0001", ItemName = "Vật tư thử", Unit = "Cái", Quantity = 3 }]
+    };
+    var sourceHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file)));
+    var firstRequest = MaterialRequestWorkbookWriter.Upsert(file, [request], sourceHash);
+    Check(File.Exists(firstRequest.BackupPath), "request worksheet creates original workbook backup");
+    Check(!firstRequest.WorkbookHash.Equals(sourceHash, StringComparison.OrdinalIgnoreCase),
+          "request worksheet updates workbook fingerprint");
+    using (var after = ZipFile.OpenRead(file))
+    {
+        foreach (var (name, hash) in inventoryBeforeRequest)
+        {
+            using var stream = after.GetEntry(name)!.Open();
+            Check(SHA256.HashData(stream).SequenceEqual(hash),
+                  "request upsert preserves unaffected ZIP part " + name);
+        }
+        var wb = Sheet(after, "xl/workbook.xml");
+        Check(wb.Descendants(m + "sheet").Any(x => (string?)x.Attribute("name") == "Phiếu yêu cầu"),
+              "request worksheet is discoverable through workbook metadata");
+        var requestSheet = after.Entries.First(x => x.FullName.StartsWith("xl/worksheets/sheet", StringComparison.Ordinal) &&
+            !inventoryBeforeRequest.ContainsKey(x.FullName));
+        var xml = Sheet(after, requestSheet.FullName);
+        Check(xml.Descendants(m + "row").Count() == 2 &&
+            xml.Descendants(m + "t").Any(x => x.Value == "YC-CAP-20261102-001"),
+            "request worksheet records document and one request line");
+    }
+    var stockAfterRequest = HisaWarehouse.Services.PrimaryWorkbookReader.ReadStocks(file);
+    Check(stockBeforeRequest.Count == stockAfterRequest.Count &&
+          stockBeforeRequest.All(pair => stockAfterRequest.ContainsKey(pair.Key)),
+          "request worksheet does not create or remove any inventory SKU");
+    request.Status = "Đã duyệt";
+    var secondRequest = MaterialRequestWorkbookWriter.Upsert(file, [request], firstRequest.WorkbookHash);
+    using (var after = ZipFile.OpenRead(file))
+    {
+        var sheet = after.Entries.Single(x => x.FullName.StartsWith("xl/worksheets/sheet4.xml", StringComparison.Ordinal));
+        var xml = Sheet(after, sheet.FullName);
+        Check(xml.Descendants(m + "row").Count() == 2 &&
+              xml.Descendants(m + "t").Any(x => x.Value == "Đã duyệt"),
+              "request status upsert updates existing ID without duplicate rows");
+    }
+    try
+    {
+        MaterialRequestWorkbookWriter.Upsert(file, [request], sourceHash);
+        throw new Exception("Stale workbook hash unexpectedly accepted.");
+    }
+    catch (IOException) { Check(true, "request writer rejects stale workbook fingerprint"); }
     Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
 }
 finally
