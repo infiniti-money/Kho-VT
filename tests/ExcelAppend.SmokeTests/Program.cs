@@ -701,7 +701,86 @@ try
         throw new Exception("Stale workbook hash unexpectedly accepted.");
     }
     catch (IOException) { Check(true, "request writer rejects stale workbook fingerprint"); }
-    Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
+    // Zalo photo schedules are plans, never actual Excel journal transactions.
+    var plannedRows = new List<HisaWarehouse.ZaloPlannedWork>();
+    var zaloFirst = new HisaWarehouse.ZaloPlannedWork
+    {
+        Id = "plan-one", ContractNo = "HD 100", PackageNo = "K01",
+        WorkType = ZaloScheduleService.Shipment, ExpectedDate = "2026-11-07",
+        Sku = "VT0001", ItemName = "Vật tư", Unit = "Cái", Quantity = 2
+    };
+    var zaloSecond = new HisaWarehouse.ZaloPlannedWork
+    {
+        Id = "plan-two", ContractNo = "HD200", PackageNo = "K02",
+        WorkType = ZaloScheduleService.Shipment, ExpectedDate = "2026-11-07",
+        Sku = "VT0001", ItemName = "Vật tư", Unit = "Cái", Quantity = 3
+    };
+    var beforeZaloStock = stockBeforeRequest["VT0001"].Current;
+    var zaloImported = ZaloScheduleService.Upsert(plannedRows, [zaloFirst, zaloSecond]);
+    Check(zaloImported.Added == 2 && zaloImported.Updated == 0 && plannedRows.Count == 2,
+          "Zalo import selected contracts creates one planned row per contract/package/SKU");
+    var importedAgain = ZaloScheduleService.Upsert(plannedRows, [zaloFirst, zaloSecond]);
+    Check(importedAgain.Unchanged == 2 && plannedRows.Count == 2,
+          "Zalo repeated photo import does not duplicate planned contracts");
+    zaloFirst.ExpectedDate = "2026-11-09";
+    var movedZaloDate = ZaloScheduleService.Upsert(plannedRows, [zaloFirst]);
+    Check(movedZaloDate.Updated == 1 && plannedRows[0].DateRevision == 1 &&
+          plannedRows[0].ExpectedDate == "2026-11-09",
+          "Zalo date changes update planned work with revision history");
+    var sampleProducts = new List<HisaWarehouse.InventoryItem>
+    {
+        new() { Sku = "VT0001", Name = "Vật tư", Unit = "Cái", Active = true,
+                WarehouseStocks = new() { ["Kho tổng"] = beforeZaloStock } }
+    };
+    var preparedZalo = ZaloScheduleService.PreparePending(plannedRows,
+        sampleProducts, "Kho tổng", "Thủ kho");
+    Check(preparedZalo.Draft.Pending && preparedZalo.Draft.Type == "Xuất" &&
+          preparedZalo.Draft.Lines.Count == 1 && preparedZalo.Draft.Lines[0].Quantity == 5 &&
+          sampleProducts[0].TotalStock == beforeZaloStock,
+          "Zalo prepare batch produces a pending shipment without posting stock");
+    ZaloScheduleService.MarkPending(plannedRows, preparedZalo.PlanIds, "PX-PLAN-1");
+    Check(plannedRows.All(x => x.PendingDocNo == "PX-PLAN-1"),
+          "Zalo staging tracks selected contracts against saved pending document");
+    try
+    {
+        ZaloScheduleService.PreparePending(plannedRows, sampleProducts, "Kho tổng", "Thủ kho");
+        throw new Exception("Repeated staging was accepted.");
+    }
+    catch (InvalidOperationException)
+    {
+        Check(true, "Zalo already-staged contracts cannot generate a second pending slip");
+    }
+    var zaloArrival = new HisaWarehouse.ZaloPlannedWork
+    {
+        ContractNo = "HD300", PackageNo = "K03", WorkType = ZaloScheduleService.ContainerArrival,
+        Sku = "VT0001", Quantity = 1
+    };
+    try
+    {
+        ZaloScheduleService.PreparePending([plannedRows[0], zaloArrival],
+            sampleProducts, "Kho tổng", "Thủ kho");
+        throw new Exception("Mixed arrival and shipment were accepted.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "Zalo receipt and shipment must not share the same pending slip");
+    }
+    try
+    {
+        ZaloScheduleService.PreparePending([new()
+        {
+            ContractNo = "HD400", WorkType = ZaloScheduleService.Shipment,
+            Sku = "NOT-IN-CATALOG", Quantity = 2
+        }], sampleProducts, "Kho tổng", "Thủ kho");
+        throw new Exception("Unknown material was accepted.");
+    }
+    catch (InvalidOperationException)
+    {
+        Check(true, "Zalo unknown SKU must be reviewed before preparing pending slip");
+    }
+    Check(sampleProducts[0].TotalStock == beforeZaloStock,
+          "Zalo import, date edit and pending slip prep never affect inventory balances");
+    Console.WriteLine($"SUCCESS {checks} Excel, Zalo planning and inventory isolation smoke checks.");
 }
 finally
 {
