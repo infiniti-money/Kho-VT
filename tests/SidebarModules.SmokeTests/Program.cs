@@ -226,4 +226,41 @@ var consent = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
 if (!consent.Contains("SpecialFolder.LocalApplicationData", StringComparison.Ordinal))
     throw new InvalidOperationException("Microphone preference must survive installation updates.");
 
+var printTemplate = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "PrintTemplateWindow.xaml"));
+foreach (var id in new[] { "PaperBox", "LandscapeCheck", "CustomWidthBox", "CustomHeightBox",
+    "TopMarginBox", "BottomMarginBox", "LeftMarginBox", "RightMarginBox", "PrinterBox",
+    "CopiesBox", "CustomPaperPanel", "PreviewViewer" })
+    if (printTemplate.Descendants().Count(el => Name(el) == id) != 1)
+        throw new InvalidOperationException("Mẫu in thiếu thiết lập: " + id);
+if (!printTemplate.Descendants().Any(el => (string?)el.Attribute("Click") == "ResetPage_Click"))
+    throw new InvalidOperationException("Mẫu in thiếu nút khôi phục thiết lập trang.");
+var slipPreview = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "PrintPreviewWindow.xaml"));
+if (!slipPreview.Descendants().Any(el => Name(el) == "PrintViewer" &&
+    el.Name.LocalName == "FlowDocumentPageViewer"))
+    throw new InvalidOperationException("Xem trước phải phân trang theo khổ giấy thực tế.");
+var layout = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "Services",
+    "PrintTemplateLayout.cs"));
+if (!layout.Contains("PrintPageSetup.Resolve(t)", StringComparison.Ordinal) ||
+    !layout.Contains("flow.PageHeight = page.HeightDip", StringComparison.Ordinal))
+    throw new InvalidOperationException("Mẫu in vẫn dùng khổ A4 cố định.");
+var printCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "PrintPreviewWindow.xaml.cs"));
+if (!printCode.Contains("PageMediaSize", StringComparison.Ordinal) ||
+    !printCode.Contains("PageOrientation", StringComparison.Ordinal) ||
+    !printCode.Contains("CopyCount", StringComparison.Ordinal))
+    throw new InvalidOperationException("Lệnh in không áp dụng cấu hình máy in hoặc khổ giấy.");
+foreach (var id in new[] { "PrintScaleBox", "FitToPageCheck", "ExcelPdfOverridesCheck" })
+    if (printTemplate.Descendants().Count(el => Name(el) == id) != 1)
+        throw new InvalidOperationException("Mẫu in thiếu tùy chọn tỷ lệ và cấu hình PDF Excel: " + id);
+var excelPdfSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "Services", "ExcelSlipTemplatePrinter.cs"));
+if (!excelPdfSource.Contains("ConfigureTemporaryPrintPage(print, pageOptions)", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("settings.FitToPagesWide = 1", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("book.Worksheets[\"Phiếu in\"]", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("book.Worksheets[\"Nhập Xuất\"]", StringComparison.Ordinal) ||
+    !excelPdfSource.Contains("bookObject).Close(false)", StringComparison.Ordinal))
+    throw new InvalidOperationException("PDF Excel phải chỉnh PageSetup trên bản sao, giữ worksheet và không lưu workbook.");
+if (!cs.Contains("template?.ApplyPageSetupToExcelPdf == true", StringComparison.Ordinal) ||
+    !cs.Contains("ExcelSlipPageSetup.ForTemplate(template)", StringComparison.Ordinal))
+    throw new InvalidOperationException("PDF Excel không có lựa chọn áp dụng thiết lập riêng.");
 Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");

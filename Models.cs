@@ -191,6 +191,22 @@ public sealed class PrintTemplate
     public double MarginMm { get; set; } = 15;
     public double CellPadding { get; set; } = 5;
     public string HeaderAlignment { get; set; } = "Center";
+    // Page setup is saved with each template in the existing HISA user data.
+    // Nullable margins preserve the old symmetric MarginMm setting on upgrade.
+    public string PaperName { get; set; } = "A4";
+    public bool Landscape { get; set; }
+    public double CustomWidthMm { get; set; } = 210;
+    public double CustomHeightMm { get; set; } = 297;
+    public double? MarginTopMm { get; set; }
+    public double? MarginBottomMm { get; set; }
+    public double? MarginLeftMm { get; set; }
+    public double? MarginRightMm { get; set; }
+    public string PrinterName { get; set; } = "";
+    public int Copies { get; set; } = 1;
+    public bool FitToPage { get; set; } = true;
+    public int PrintScalePercent { get; set; } = 100;
+    // Opt-in: default keeps the Excel Phiếu in layout exactly as it was.
+    public bool ApplyPageSetupToExcelPdf { get; set; }
 }
 
 public sealed class ChartPayload

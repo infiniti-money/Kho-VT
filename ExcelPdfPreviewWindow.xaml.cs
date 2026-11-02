@@ -10,6 +10,8 @@ public partial class ExcelPdfPreviewWindow : Window
     {
         InitializeComponent();
         _preview = preview;
+        PageInfoText.Text = "PDF tạm · " + preview.PageSummary +
+            " · KHO.xlsx gốc không bị sửa · Chọn máy in trong hộp thoại PDF";
     }
 
     private async void Viewer_Loaded(object sender, RoutedEventArgs e)

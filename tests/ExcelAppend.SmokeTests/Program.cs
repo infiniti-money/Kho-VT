@@ -744,7 +744,93 @@ try
         throw new Exception("Stale workbook hash unexpectedly accepted.");
     }
     catch (IOException) { Check(true, "request writer rejects stale workbook fingerprint"); }
-    Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
+    // Page setup must remain independent of Excel and save paper settings per template.
+    var a4 = PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate());
+    Check(a4.WidthMm == 210 && a4.HeightMm == 297 &&
+          a4.TopMm == 15 && a4.RightMm == 15,
+          "print A4 portrait inherits saved legacy margin");
+    var a5 = PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "A5", Landscape = true,
+        MarginTopMm = 5, MarginBottomMm = 6, MarginLeftMm = 7, MarginRightMm = 8
+    });
+    Check(a5.WidthMm == 210 && a5.HeightMm == 148 &&
+          a5.TopMm == 5 && a5.BottomMm == 6 && a5.LeftMm == 7 && a5.RightMm == 8,
+          "print A5 landscape has independent margins and rotated dimensions");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PaperName = "A6" }).WidthMm == 105 &&
+          PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PaperName = "Letter" }).WidthMm == 215.9,
+          "print A6 and Letter map to correct widths");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "58mm", MarginTopMm = 3, MarginBottomMm = 3,
+        MarginLeftMm = 3, MarginRightMm = 3
+    }).WidthMm == 58 &&
+          PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "80mm", MarginTopMm = 3, MarginBottomMm = 3,
+        MarginLeftMm = 3, MarginRightMm = 3
+    }).WidthMm == 80,
+          "print receipt paper formats have validated content width");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "Tùy chỉnh", CustomWidthMm = 130, CustomHeightMm = 230
+    }).HeightMm == 230, "print custom paper size is supported");
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+        {
+            PaperName = "58mm", MarginLeftMm = 20, MarginRightMm = 20
+        });
+        throw new Exception("Unexpectedly accepted narrow unusable receipt.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print rejects impossible narrow content area");
+    }
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { Copies = 0 });
+        throw new Exception("Unexpectedly accepted zero copies.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print requires positive copy count");
+    }
+    var excelOptions = ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "A5", Landscape = true, FitToPage = false, PrintScalePercent = 135,
+        MarginTopMm = 5, MarginBottomMm = 6, MarginLeftMm = 7, MarginRightMm = 8
+    });
+    Check(excelOptions.PaperSize == 11 && excelOptions.Orientation == 2 &&
+          !excelOptions.FitToPage && excelOptions.ScalePercent == 135 &&
+          Math.Abs(excelOptions.TopPoints - 5 * 72d / 25.4) < 0.001,
+          "Excel PDF layout uses A5 landscape, millimeter margins and explicit 135% scale");
+    var excelFit = ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate
+    { PaperName = "A4", FitToPage = true });
+    Check(excelFit.PaperSize == 9 && excelFit.Orientation == 1 && excelFit.FitToPage,
+          "Excel PDF fit-width defaults to A4 portrait without touching source workbook");
+    Check(ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "A6" }).PaperSize == 70 &&
+          ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "Letter" }).PaperSize == 1,
+          "Excel PDF maps A6 and Letter to Excel-specific paper identifiers");
+    try
+    {
+        ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "58mm" });
+        throw new Exception("Unsupported receipt printer size was accepted for Excel COM.");
+    }
+    catch (NotSupportedException)
+    {
+        Check(true, "Excel PDF rejects unsupported driver-specific receipt media instead of silently printing wrong size");
+    }
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PrintScalePercent = 201 });
+        throw new Exception("Accepted invalid oversized print scale.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print scale is limited to 30% through 200%");
+    }
+    Console.WriteLine($"SUCCESS {checks} Excel and print page setup regression checks.");
 }
 finally
 {

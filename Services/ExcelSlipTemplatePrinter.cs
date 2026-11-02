@@ -11,7 +11,7 @@ namespace HisaWarehouse.Services;
 /// </summary>
 public static class ExcelSlipTemplatePrinter
 {
-    public sealed record Preview(string PdfPath, string WorkDirectory) : IDisposable
+    public sealed record Preview(string PdfPath, string WorkDirectory, string PageSummary = "Bố cục mẫu Excel gốc") : IDisposable
     {
         public void Dispose()
         {
@@ -22,13 +22,14 @@ public static class ExcelSlipTemplatePrinter
     }
 
     public static Task<Preview> CreatePreviewAsync(
-        string source, string docNo, CancellationToken cancellationToken = default)
+        string source, string docNo, ExcelSlipPageSetup.Settings? pageOptions = null,
+        CancellationToken cancellationToken = default)
     {
         var completion = new TaskCompletionSource<Preview>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
-            try { completion.SetResult(CreatePreview(source, docNo, cancellationToken)); }
+            try { completion.SetResult(CreatePreview(source, docNo, pageOptions, cancellationToken)); }
             catch (Exception ex) { completion.TrySetException(ex); }
         });
         thread.SetApartmentState(ApartmentState.STA); // Required by Excel COM automation
@@ -37,7 +38,44 @@ public static class ExcelSlipTemplatePrinter
         return completion.Task;
     }
 
-    private static Preview CreatePreview(string path, string docNo, CancellationToken cancel)
+    private static void ConfigureTemporaryPrintPage(dynamic print, ExcelSlipPageSetup.Settings options)
+    {
+        // Only modify PageSetup on the transient workbook copy used to create
+        // the PDF; never save or alter the original sheet "Phiếu in".
+        try
+        {
+            dynamic settings = print.PageSetup;
+            settings.PaperSize = options.PaperSize;
+            settings.Orientation = options.Orientation;
+            settings.TopMargin = options.TopPoints;
+            settings.BottomMargin = options.BottomPoints;
+            settings.LeftMargin = options.LeftPoints;
+            settings.RightMargin = options.RightPoints;
+            if (options.FitToPage)
+            {
+                settings.Zoom = false; // Required for FitToPagesWide to take effect.
+                settings.FitToPagesWide = 1;
+                settings.FitToPagesTall = false; // Never silently shrink many rows onto one tiny page.
+            }
+            else
+            {
+                settings.Zoom = options.ScalePercent;
+            }
+            if ((int)settings.PaperSize != options.PaperSize ||
+                (int)settings.Orientation != options.Orientation)
+                throw new InvalidOperationException("Driver đã đổi kích thước hoặc hướng giấy.");
+        }
+        catch (Exception error)
+        {
+            throw new InvalidOperationException(
+                "Excel hoặc driver máy in không hỗ trợ thiết lập trang vừa chọn. " +
+                "Hãy chọn A4/A5/A6/Letter được máy in hỗ trợ hoặc tắt tùy chọn " +
+                "áp dụng giấy cho PDF Excel để giữ nguyên bố cục: " + error.Message, error);
+        }
+    }
+
+    private static Preview CreatePreview(string path, string docNo,
+        ExcelSlipPageSetup.Settings? pageOptions, CancellationToken cancel)
     {
         if (string.IsNullOrWhiteSpace(docNo)) throw new ArgumentException("Chưa có số phiếu để in.");
         cancel.ThrowIfCancellationRequested();
@@ -94,12 +132,17 @@ public static class ExcelSlipTemplatePrinter
             print.Range["C4"].Value2 = selector;
             excel.CalculateFullRebuild();
             cancel.ThrowIfCancellationRequested();
+            if (pageOptions is not null)
+                ConfigureTemporaryPrintPage(print, pageOptions);
             // Use the exact template's existing print area, merged cells, layout,
             // fonts, borders and built-in formulas, not a recreated WPF receipt.
             print.ExportAsFixedFormat(0, pdf);
             if (!File.Exists(pdf) || new FileInfo(pdf).Length == 0)
                 throw new IOException("Excel chưa xuất được PDF từ sheet Phiếu in.");
-            return new Preview(pdf, folder);
+            return new Preview(pdf, folder, pageOptions is null
+                ? "Bố cục mẫu Excel gốc"
+                : $"Giấy đã chọn · {(pageOptions.Orientation == 2 ? "Ngang" : "Dọc")} · " +
+                  (pageOptions.FitToPage ? "Tự vừa chiều ngang" : $"{pageOptions.ScalePercent}%"));
         }
         catch
         {
