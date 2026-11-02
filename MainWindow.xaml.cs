@@ -1778,7 +1778,12 @@ public partial class MainWindow : Window
         {
             var returnPage = _currentPage;
             ShowToast("Đang tạo bản xem trước từ sheet Phiếu in trong Excel...");
-            var pdf = await ExcelSlipTemplatePrinter.CreatePreviewAsync(State.PrimaryExcelPath, docNo);
+            var transaction = State.Transactions.FirstOrDefault(t =>
+                t.DocNo == docNo && (t.Type == "Nhập" || t.Type == "Xuất"));
+            var template = transaction is null ? null : PrintTemplateService.Get(State, transaction.Type);
+            var options = template?.ApplyPageSetupToExcelPdf == true
+                ? ExcelSlipPageSetup.ForTemplate(template) : null;
+            var pdf = await ExcelSlipTemplatePrinter.CreatePreviewAsync(State.PrimaryExcelPath, docNo, options);
             if (_currentEmbeddedPage is not null || _currentPage != returnPage || !IsVisible)
             {
                 pdf.Dispose();
