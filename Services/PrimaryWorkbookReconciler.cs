@@ -26,11 +26,17 @@ public static class PrimaryWorkbookReconciler
         IReadOnlyList<PrimaryWorkbookReader.Transaction> Transactions,
         int NewSkus, int ChangedStocks, int ChangedHistory, int UnmatchedLocalSkus)
     {
+        public IReadOnlyList<MaterialRequest>? RequestsFromExcel { get; init; }
+        public int ChangedRequests { get; init; }
+
         public string Summary =>
             $"Excel đã lưu {SavedUtc.ToLocalTime():dd/MM/yyyy HH:mm}. " +
             $"{Stocks.Count:N0} mã vật tư, {Transactions.Count:N0} dòng giao dịch.\n" +
             $"{NewSkus:N0} mã mới · {ChangedStocks:N0} số tồn khác cache · " +
             $"{ChangedHistory:N0} dòng lịch sử nhập từ Excel thay đổi.\n" +
+            (RequestsFromExcel is null ? "" :
+                $"Sheet Phiếu yêu cầu: {RequestsFromExcel.Count:N0} phiếu, " +
+                $"{ChangedRequests:N0} phiếu mới, sửa hoặc bị xóa so với HISA.\n") +
             (UnmatchedLocalSkus > 0
                 ? $"{UnmatchedLocalSkus:N0} mã chỉ có ở HISA sẽ được giữ nguyên, cần kiểm tra riêng.\n"
                 : "") +
@@ -52,6 +58,7 @@ public static class PrimaryWorkbookReconciler
             throw new InvalidDataException($"Có {audit.MissingProtectedFormulas} ô công thức thiếu. Khôi phục công thức rồi tính lại Excel trước khi đồng bộ.");
         var stocks = PrimaryWorkbookReader.ReadStocks(path);
         var rows = PrimaryWorkbookReader.ReadTransactions(path);
+        var requestSheet = MaterialRequestWorkbookReader.Read(path);
         if (Fingerprint(path) != before)
             throw new IOException("Excel thay đổi trong lúc đối chiếu; hãy lưu xong rồi thử lại.");
         var unknownRow = rows.FirstOrDefault(row => !stocks.ContainsKey(row.Sku));
@@ -66,6 +73,17 @@ public static class PrimaryWorkbookReconciler
             existing.Sku != row.Sku || existing.Type != row.Type ||
             existing.Quantity != row.Quantity || existing.Date !=
                 (row.Date.HasValue ? DateOnly.FromDateTime(row.Date.Value) : null));
+        int requestChanges = 0;
+        if (requestSheet is not null)
+        {
+            var fromExcel = requestSheet.ToDictionary(r => r.Id, StringComparer.Ordinal);
+            var fromCache = state.MaterialRequests.ToDictionary(r => r.Id, StringComparer.Ordinal);
+            requestChanges = requestSheet.Count(r =>
+                !fromCache.TryGetValue(r.Id, out var cached) ||
+                System.Text.Json.JsonSerializer.Serialize(r) !=
+                    System.Text.Json.JsonSerializer.Serialize(cached));
+            requestChanges += fromCache.Keys.Count(id => !fromExcel.ContainsKey(id));
+        }
         return new Preview(path, before, StateSignature(state), File.GetLastWriteTimeUtc(path),
             stocks, rows,
             stocks.Keys.Count(sku => !current.ContainsKey(sku)),
@@ -73,7 +91,11 @@ public static class PrimaryWorkbookReconciler
                 (Math.Abs(item.TotalStock - stock.Current) > 1e-7 ||
                  item.Name != stock.Name || item.Unit != stock.Unit ||
                  Math.Abs(item.MinStock - stock.Minimum) > 1e-7)),
-            modifiedHistory, current.Keys.Count(sku => !stocks.ContainsKey(sku)));
+            modifiedHistory, current.Keys.Count(sku => !stocks.ContainsKey(sku)))
+        {
+            RequestsFromExcel = requestSheet,
+            ChangedRequests = requestChanges
+        };
     }
 
     public static void Apply(Preview preview, InventoryState state)
@@ -135,6 +157,10 @@ public static class PrimaryWorkbookReconciler
             };
         }).ToList();
         state.Transactions = new ObservableCollection<InventoryTransaction>(local.Concat(source));
+        // Accepted Excel material requests replace their local cache, not stock.
+        // Older workbooks without the optional sheet keep existing HISA requests.
+        if (preview.RequestsFromExcel is not null)
+            state.MaterialRequests = new ObservableCollection<MaterialRequest>(preview.RequestsFromExcel);
         state.PrimaryExcelPath = preview.WorkbookPath;
         state.PrimarySyncFingerprint = preview.WorkbookHash;
         state.PrimaryExcelSyncedWriteUtc = preview.SavedUtc;
