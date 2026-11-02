@@ -21,16 +21,29 @@ public partial class PendingMovementsWindow : Window
 {
     public PendingMovement? SelectedMovement { get; private set; }
     public string Action { get; private set; } = "";
+    public Action<PendingMovement>? OpenEditor { get; set; }
 
-    public PendingMovementsWindow(IEnumerable<PendingMovement> pending)
+    public void RefreshRows(IEnumerable<PendingMovement> pending)
     {
-        InitializeComponent();
-        var rows = pending.Where(movement => movement.Status == "Chờ xác nhận").OrderByDescending(movement => movement.CreatedAt).Select(movement => new PendingMovementRow { Movement = movement }).ToList();
+        var rows = pending.Where(x => x.Status == "Chờ xác nhận").OrderByDescending(x => x.CreatedAt)
+            .Select(x => new PendingMovementRow { Movement = x }).ToList();
         PendingGrid.ItemsSource = rows;
         CountText.Text = $"{rows.Count:N0} phiếu chờ xác nhận";
     }
 
+    public PendingMovementsWindow(IEnumerable<PendingMovement> pending)
+    {
+        InitializeComponent();
+        RefreshRows(pending);
+    }
+
     private PendingMovement? SelectMovement() => (PendingGrid.SelectedItem as PendingMovementRow)?.Movement;
+    private void EditPending_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = SelectMovement();
+        if (selected is null) { this.NotifyInline("Chọn phiếu chờ để mở và chỉnh sửa."); return; }
+        OpenEditor?.Invoke(selected);
+    }
     private void Confirm_Click(object sender, RoutedEventArgs e) => Complete("confirm");
     private void CancelPending_Click(object sender, RoutedEventArgs e) => Complete("cancel");
     private void Complete(string action)
