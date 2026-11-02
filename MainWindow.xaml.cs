@@ -1438,6 +1438,11 @@ public partial class MainWindow : Window
             Lines = pending.Lines.Select(line => new MovementLine { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList()
         };
         if (!ValidateCurrentStock(movementDraft)) return;
+        if (!_pendingMovementInFlight.TryAdd(pending.Id, 0))
+        {
+            ShowToast($"Phiếu {pending.DocNo} đang được xác nhận. Không gửi giao dịch lần thứ hai.");
+            return;
+        }
         Interlocked.Increment(ref _activeExcelCommits);
         try
         {
@@ -1455,7 +1460,11 @@ public partial class MainWindow : Window
             }
             ShowToast($"Đã xác nhận {pending.DocNo} và ghi sheet Nhập Xuất (nếu là Nhập/Xuất).");
         }
-        finally { Interlocked.Decrement(ref _activeExcelCommits); }
+        finally
+        {
+            Interlocked.Decrement(ref _activeExcelCommits);
+            _pendingMovementInFlight.TryRemove(pending.Id, out _);
+        }
     }
 
     private bool ValidateCurrentStock(MovementDraft draft)
