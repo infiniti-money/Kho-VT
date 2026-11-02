@@ -695,12 +695,141 @@ try
               xml.Descendants(m + "t").Any(x => x.Value == "Đã duyệt"),
               "request status upsert updates existing ID without duplicate rows");
     }
+    // A manually saved Excel material request must be visible when HISA
+    // explicitly reconciles. Import replaces request cache, not stock.
+    var importedRequests = MaterialRequestWorkbookReader.Read(file);
+    Check(importedRequests is { Count: 1 } &&
+          importedRequests[0].DocNo == request.DocNo &&
+          importedRequests[0].Status == "Đã duyệt" &&
+          importedRequests[0].Lines.Single().Quantity == 3,
+          "request worksheet reader retrieves saved request fields and lines");
+    var synchronizedState = new HisaWarehouse.InventoryState();
+    synchronizedState.Warehouses.Add("Kho tổng");
+    var requestSync = PrimaryWorkbookReconciler.Prepare(file, synchronizedState);
+    Check(requestSync.RequestsFromExcel is { Count: 1 } &&
+          requestSync.ChangedRequests == 1 &&
+          requestSync.Summary.Contains("Phiếu yêu cầu", StringComparison.Ordinal),
+          "Excel synchronization previews new material requests");
+    PrimaryWorkbookReconciler.Apply(requestSync, synchronizedState);
+    Check(synchronizedState.MaterialRequests.Count == 1 &&
+          synchronizedState.MaterialRequests[0].Status == "Đã duyệt" &&
+          synchronizedState.Products.Single(x => x.Sku == "VT0001").TotalStock ==
+              stockBeforeRequest["VT0001"].Current,
+          "Excel request import updates only request cache and never adds stock");
+    // Simulate an external Excel save changing only the request status.
+    using (var editZip = ZipFile.Open(file, ZipArchiveMode.Update))
+    {
+        var entry = editZip.GetEntry("xl/worksheets/sheet4.xml")!;
+        XDocument xml;
+        using (var stream = entry.Open()) xml = XDocument.Load(stream);
+        var status = Cell(xml, "J2").Descendants(m + "t").Single();
+        status.Value = "Hoàn thành";
+        entry.Delete();
+        var replaced = editZip.CreateEntry("xl/worksheets/sheet4.xml");
+        using var output = replaced.Open();
+        xml.Save(output);
+    }
+    var updatedRequestSync = PrimaryWorkbookReconciler.Prepare(file, synchronizedState);
+    Check(updatedRequestSync.ChangedRequests == 1,
+          "request reconciliation detects an Excel-only status edit");
+    PrimaryWorkbookReconciler.Apply(updatedRequestSync, synchronizedState);
+    Check(synchronizedState.MaterialRequests.Single().Status == "Hoàn thành" &&
+          synchronizedState.Products.Single(x => x.Sku == "VT0001").TotalStock ==
+              stockBeforeRequest["VT0001"].Current,
+          "manual Excel request change is imported without a duplicate inventory movement");
+
     try
     {
         MaterialRequestWorkbookWriter.Upsert(file, [request], sourceHash);
         throw new Exception("Stale workbook hash unexpectedly accepted.");
     }
     catch (IOException) { Check(true, "request writer rejects stale workbook fingerprint"); }
+    // Page setup must remain independent of Excel and save paper settings per template.
+    var a4 = PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate());
+    Check(a4.WidthMm == 210 && a4.HeightMm == 297 &&
+          a4.TopMm == 15 && a4.RightMm == 15,
+          "print A4 portrait inherits saved legacy margin");
+    var a5 = PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "A5", Landscape = true,
+        MarginTopMm = 5, MarginBottomMm = 6, MarginLeftMm = 7, MarginRightMm = 8
+    });
+    Check(a5.WidthMm == 210 && a5.HeightMm == 148 &&
+          a5.TopMm == 5 && a5.BottomMm == 6 && a5.LeftMm == 7 && a5.RightMm == 8,
+          "print A5 landscape has independent margins and rotated dimensions");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PaperName = "A6" }).WidthMm == 105 &&
+          PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PaperName = "Letter" }).WidthMm == 215.9,
+          "print A6 and Letter map to correct widths");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "58mm", MarginTopMm = 3, MarginBottomMm = 3,
+        MarginLeftMm = 3, MarginRightMm = 3
+    }).WidthMm == 58 &&
+          PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "80mm", MarginTopMm = 3, MarginBottomMm = 3,
+        MarginLeftMm = 3, MarginRightMm = 3
+    }).WidthMm == 80,
+          "print receipt paper formats have validated content width");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "Tùy chỉnh", CustomWidthMm = 130, CustomHeightMm = 230
+    }).HeightMm == 230, "print custom paper size is supported");
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+        {
+            PaperName = "58mm", MarginLeftMm = 20, MarginRightMm = 20
+        });
+        throw new Exception("Unexpectedly accepted narrow unusable receipt.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print rejects impossible narrow content area");
+    }
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { Copies = 0 });
+        throw new Exception("Unexpectedly accepted zero copies.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print requires positive copy count");
+    }
+    var excelOptions = ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "A5", Landscape = true, FitToPage = false, PrintScalePercent = 135,
+        MarginTopMm = 5, MarginBottomMm = 6, MarginLeftMm = 7, MarginRightMm = 8
+    });
+    Check(excelOptions.PaperSize == 11 && excelOptions.Orientation == 2 &&
+          !excelOptions.FitToPage && excelOptions.ScalePercent == 135 &&
+          Math.Abs(excelOptions.TopPoints - 5 * 72d / 25.4) < 0.001,
+          "Excel PDF layout uses A5 landscape, millimeter margins and explicit 135% scale");
+    var excelFit = ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate
+    { PaperName = "A4", FitToPage = true });
+    Check(excelFit.PaperSize == 9 && excelFit.Orientation == 1 && excelFit.FitToPage,
+          "Excel PDF fit-width defaults to A4 portrait without touching source workbook");
+    Check(ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "A6" }).PaperSize == 70 &&
+          ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "Letter" }).PaperSize == 1,
+          "Excel PDF maps A6 and Letter to Excel-specific paper identifiers");
+    try
+    {
+        ExcelSlipPageSetup.ForTemplate(new HisaWarehouse.PrintTemplate { PaperName = "58mm" });
+        throw new Exception("Unsupported receipt printer size was accepted for Excel COM.");
+    }
+    catch (NotSupportedException)
+    {
+        Check(true, "Excel PDF rejects unsupported driver-specific receipt media instead of silently printing wrong size");
+    }
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PrintScalePercent = 201 });
+        throw new Exception("Accepted invalid oversized print scale.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print scale is limited to 30% through 200%");
+    }
     // Zalo photo schedules are plans, never actual Excel journal transactions.
     var plannedRows = new List<HisaWarehouse.ZaloPlannedWork>();
     var zaloFirst = new HisaWarehouse.ZaloPlannedWork

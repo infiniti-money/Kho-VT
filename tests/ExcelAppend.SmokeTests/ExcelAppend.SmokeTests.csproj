@@ -12,10 +12,13 @@
     <Compile Include="../../Services/PrimaryWorkbookReconciler.cs" Link="PrimaryWorkbookReconciler.cs" />
     <Compile Include="../../Services/MaterialRequestService.cs" Link="MaterialRequestService.cs" />
     <Compile Include="../../Services/MaterialRequestWorkbookWriter.cs" Link="MaterialRequestWorkbookWriter.cs" />
+    <Compile Include="../../Services/MaterialRequestWorkbookReader.cs" Link="MaterialRequestWorkbookReader.cs" />
     <Compile Include="../../Services/ZaloScheduleService.cs" Link="ZaloScheduleService.cs" />
     <Compile Include="../../Services/ZaloScheduleImageReader.cs" Link="ZaloScheduleImageReader.cs" />
     <Compile Include="../../Services/GeminiAssistantClient.cs" Link="GeminiAssistantClient.cs" />
     <Compile Include="../../Services/PcmVoiceActivityDetector.cs" Link="PcmVoiceActivityDetector.cs" />
+    <Compile Include="../../Services/PrintPageSetup.cs" Link="PrintPageSetup.cs" />
+    <Compile Include="../../Services/ExcelSlipPageSetup.cs" Link="ExcelSlipPageSetup.cs" />
     <Compile Include="../../Services/AnCatalogEditService.cs" Link="AnCatalogEditService.cs" />
     <Compile Include="../../Services/PrimaryFormulaRecovery.cs" Link="PrimaryFormulaRecovery.cs" />
     <Compile Include="../../Services/AutomaticFormulaRecovery.cs" Link="AutomaticFormulaRecovery.cs" />
