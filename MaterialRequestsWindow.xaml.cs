@@ -42,8 +42,10 @@ public partial class MaterialRequestsWindow : Window
         CountText.Text = $"{rows.Count:N0} yêu cầu · {rows.Count(row => row.Request.Status is "Chờ xử lý" or "Chờ duyệt"):N0} đang chờ duyệt";
     }
 
-    private void NewReserveRequest_Click(object sender, RoutedEventArgs e) =>
-        CreateRequest("Yêu cầu cấp vật tư dự phòng");
+    private void NewSupplyRequest_Click(object sender, RoutedEventArgs e) =>
+        CreateRequest("Yêu cầu cấp vật tư");
+    private void NewImportRequest_Click(object sender, RoutedEventArgs e) =>
+        CreateRequest("Yêu cầu nhập vật tư");
     private void CreateRequest(string type)
     {
         // This page is hosted inside MainWindow, not shown as a WPF Window.
