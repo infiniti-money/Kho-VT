@@ -682,8 +682,9 @@ try
     }
     var stockAfterRequest = HisaWarehouse.Services.PrimaryWorkbookReader.ReadStocks(file);
     Check(stockBeforeRequest.Count == stockAfterRequest.Count &&
-          stockBeforeRequest.All(pair => stockAfterRequest.ContainsKey(pair.Key)),
-          "request worksheet does not create or remove any inventory SKU");
+          stockBeforeRequest.All(pair => stockAfterRequest.TryGetValue(pair.Key, out var afterStock) &&
+              afterStock.Current == pair.Value.Current && afterStock.Minimum == pair.Value.Minimum),
+          "request worksheet never changes inventory SKUs, quantities or minimum stock");
     request.Status = "Đã duyệt";
     var secondRequest = MaterialRequestWorkbookWriter.Upsert(file, [request], firstRequest.WorkbookHash);
     using (var after = ZipFile.OpenRead(file))
