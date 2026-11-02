@@ -1363,7 +1363,8 @@ public partial class MainWindow : Window
     private async Task OpenPendingMovementsAsync()
     {
         if (!CanOpenAnotherPage()) return;
-        var page = new PendingMovementsWindow(State.PendingMovements)
+        PendingMovementsWindow? page = null;
+        page = new PendingMovementsWindow(State.PendingMovements)
         {
             OpenEditor = pending =>
             {
