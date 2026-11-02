@@ -12,6 +12,7 @@ public sealed class ZaloPlanRow
 {
     public bool IsSelected { get; set; }
     public ZaloPlannedWork Plan { get; init; } = new();
+    public string Status { get; init; } = "Dự kiến";
 }
 
 public partial class ZaloScheduleWindow : Window, IWorkspaceDirtyPage
@@ -71,7 +72,15 @@ public partial class ZaloScheduleWindow : Window, IWorkspaceDirtyPage
             .ToHashSet(StringComparer.Ordinal);
         _plans.Clear();
         _plans.AddRange(_state.ZaloPlans.Select(p =>
-            new ZaloPlanRow { Plan = p, IsSelected = selected.Contains(p.Id) }));
+        {
+            var pending = _state.PendingMovements.FirstOrDefault(m => m.DocNo == p.PendingDocNo);
+            return new ZaloPlanRow
+            {
+                Plan = p, IsSelected = selected.Contains(p.Id),
+                Status = pending?.Status == "Đã xác nhận" ? "Đã xác nhận thực tế" :
+                         pending?.Status == "Chờ xác nhận" ? "Đã lên phiếu chờ" : "Dự kiến"
+            };
+        }));
         var filtered = FilterPlans();
         PlansGrid.ItemsSource = null;
         PlansGrid.ItemsSource = filtered;
@@ -136,7 +145,7 @@ public partial class ZaloScheduleWindow : Window, IWorkspaceDirtyPage
             this.NotifyInline("Hãy cấu hình khóa Gemini trong Trợ lý An trước khi nhận diện ảnh.");
             return;
         }
-        if (MessageBox.Show(this, "Bạn đồng ý gửi ảnh Zalo vừa chọn tới Google Gemini " +
+        if (MessageBox.Show(Application.Current.MainWindow, "Bạn đồng ý gửi ảnh Zalo vừa chọn tới Google Gemini " +
             "để nhận diện lịch dự kiến? Ảnh có thể chứa số hợp đồng và thông tin công việc. " +
             "Không có dữ liệu nào tự ghi vào Excel hoặc đánh dấu đã xuất hàng.",
             "Xác nhận gửi ảnh", MessageBoxButton.YesNo,
@@ -213,6 +222,20 @@ public partial class ZaloScheduleWindow : Window, IWorkspaceDirtyPage
             var warehouse = _state.Warehouses.FirstOrDefault() ?? "";
             var pending = ZaloScheduleService.PreparePending(
                 selection, _state.Products.ToList(), warehouse, Environment.UserName);
+            if (pending.Draft.Type == "Xuất")
+            {
+                var shortages = pending.Draft.Lines.Where(line =>
+                {
+                    var product = _state.Products.First(p => p.Sku == line.Sku);
+                    return product.WarehouseStocks.GetValueOrDefault(warehouse) < line.Quantity;
+                }).Select(line => line.Sku).ToArray();
+                if (shortages.Length > 0 && MessageBox.Show(Application.Current.MainWindow,
+                    "Có vật tư chưa đủ tồn tại " + warehouse + ": " +
+                    string.Join(", ", shortages) +
+                    ". Bạn vẫn có thể lưu PHIẾU CHỜ, nhưng không thể xác nhận xuất khi thiếu tồn. Tiếp tục?",
+                    "Cảnh báo thiếu tồn kho", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            }
             if (OpenDraftEditor is null)
                 throw new InvalidOperationException("Không có màn hình duyệt phiếu.");
             OpenDraftEditor(pending);
