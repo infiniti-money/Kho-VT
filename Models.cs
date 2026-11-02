@@ -196,6 +196,7 @@ public sealed class ZaloPlannedWork
     public string ImageFingerprint { get; set; } = "";
     public string PendingDocNo { get; set; } = "";
     public int DateRevision { get; set; }
+    public List<string> PreviousExpectedDates { get; set; } = [];
 }
 
 public sealed class PrintTemplate
