@@ -44,7 +44,10 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
                 ReadNumber(LeftMarginBox, "lề trái") == (_current.MarginLeftMm ?? _current.MarginMm) &&
                 ReadNumber(RightMarginBox, "lề phải") == (_current.MarginRightMm ?? _current.MarginMm) &&
                 (PrinterBox.Text?.Trim() ?? "") == _current.PrinterName &&
-                ReadCopies() == _current.Copies;
+                ReadCopies() == _current.Copies &&
+                ReadScalePercent() == _current.PrintScalePercent &&
+                FitToPageCheck.IsChecked == _current.FitToPage &&
+                ExcelPdfOverridesCheck.IsChecked == _current.ApplyPageSetupToExcelPdf;
         }
         catch (ArgumentException) { return false; } // Invalid uncommitted numeric edit.
     }
@@ -90,7 +93,9 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         MarginRightMm = value.MarginRightMm,
         PrinterName = value.PrinterName,
         Copies = value.Copies,
-        FitToPage = value.FitToPage
+        FitToPage = value.FitToPage,
+        PrintScalePercent = value.PrintScalePercent,
+        ApplyPageSetupToExcelPdf = value.ApplyPageSetupToExcelPdf
     };
 
     private void RefreshTypes(string? selected)
@@ -123,6 +128,9 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         foreach (var box in new[] { TopMarginBox, BottomMarginBox, LeftMarginBox, RightMarginBox }) box.Text = "15";
         PrinterBox.Text = "";
         CopiesBox.Text = "1";
+        PrintScaleBox.Text = "100";
+        FitToPageCheck.IsChecked = true;
+        ExcelPdfOverridesCheck.IsChecked = false;
     }
 
     private void Type_Changed(object sender, SelectionChangedEventArgs e)
@@ -172,6 +180,9 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         RightMarginBox.Text = (_current.MarginRightMm ?? _current.MarginMm).ToString(CultureInfo.InvariantCulture);
         PrinterBox.Text = _current.PrinterName;
         CopiesBox.Text = _current.Copies.ToString(CultureInfo.InvariantCulture);
+        PrintScaleBox.Text = _current.PrintScalePercent.ToString(CultureInfo.InvariantCulture);
+        FitToPageCheck.IsChecked = _current.FitToPage;
+        ExcelPdfOverridesCheck.IsChecked = _current.ApplyPageSetupToExcelPdf;
         CustomPaperPanel.Visibility = _current.PaperName == "Tùy chỉnh" ? Visibility.Visible : Visibility.Collapsed;
         FontBox.SelectedIndex = _current.FontName switch
         {
@@ -207,6 +218,13 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         return copies;
     }
 
+    private int ReadScalePercent()
+    {
+        if (!int.TryParse(PrintScaleBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var percent))
+            throw new ArgumentException("Tỷ lệ in phải là số nguyên.");
+        return percent;
+    }
+
     private void Paper_Changed(object sender, SelectionChangedEventArgs e)
     {
         if (_loading || CustomPaperPanel is null || PaperBox.SelectedItem is null) return;
@@ -232,6 +250,9 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
                 box.Text = "15";
             PrinterBox.Text = "";
             CopiesBox.Text = "1";
+            PrintScaleBox.Text = "100";
+            FitToPageCheck.IsChecked = true;
+            ExcelPdfOverridesCheck.IsChecked = false;
             CustomPaperPanel.Visibility = Visibility.Collapsed;
         }
         finally { _loading = false; }
@@ -264,6 +285,11 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         next.MarginRightMm = ReadNumber(RightMarginBox, "lề phải");
         next.PrinterName = PrinterBox.Text?.Trim() ?? "";
         next.Copies = ReadCopies();
+        next.PrintScalePercent = ReadScalePercent();
+        next.FitToPage = FitToPageCheck.IsChecked == true;
+        next.ApplyPageSetupToExcelPdf = ExcelPdfOverridesCheck.IsChecked == true;
+        if (next.ApplyPageSetupToExcelPdf && next.Type is "Nhập" or "Xuất")
+            ExcelSlipPageSetup.ForTemplate(next);
         PrintTemplateLayout.Validate(next);
         var index = _templates.IndexOf(_current);
         _templates[index] = next;
@@ -278,7 +304,7 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
             PreviewViewer.Document = PrintTemplateLayout.Preview(_current);
             var dimension = PrintPageSetup.Resolve(_current);
             PreviewHeading.Text = $"XEM TRƯỚC · {_current.PaperName} · {(_current.Landscape ? "NGANG" : "DỌC")} · {dimension.WidthMm:0.#} × {dimension.HeightMm:0.#} mm";
-            EditorStatus.Text = "Bản xem trước phân trang bằng đúng kích thước đã chọn; chưa in và chưa ghi vào Excel.";
+            EditorStatus.Text = "Bản xem trước dùng khổ giấy đã chọn và tỷ lệ chữ. PDF Phiếu in từ Excel chỉ áp dụng cài đặt nếu đã bật tùy chọn; không ghi KHO.xlsx.";
         }
         catch (Exception ex)
         {
