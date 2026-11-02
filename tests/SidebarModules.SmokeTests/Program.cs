@@ -184,16 +184,20 @@ foreach (var name in new[] { "ManualEntryCheck", "ManualSkuBox", "ManualNameBox"
     if (reserveEditor.Descendants().Count(el => Name(el) == name) != 1)
         throw new InvalidOperationException("Manual reserve entry control missing: " + name);
 var reserveList = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "MaterialRequestsWindow.xaml"));
-if (!reserveList.Descendants().Any(el => (string?)el.Attribute("Click") == "NewReserveRequest_Click"))
-    throw new InvalidOperationException("Request list must expose a reserve material request button.");
+foreach (var click in new[] { "NewSupplyRequest_Click", "NewImportRequest_Click" })
+    if (reserveList.Descendants().Count(el => (string?)el.Attribute("Click") == click) != 1)
+        throw new InvalidOperationException("Request list must expose supply and import requests: " + click);
+if (reserveList.Descendants().Any(el => (string?)el.Attribute("Click") == "NewReserveRequest_Click"))
+    throw new InvalidOperationException("Retired reserve request action must not be present.");
 var navReserve = main.Descendants().Single(el => Name(el) == "NavReplenishment");
-if (!((string?)navReserve.Attribute("ToolTip") ?? "").Contains("cấp vật tư dự phòng", StringComparison.Ordinal))
-    throw new InvalidOperationException("Sidebar must expose the reserve material request instead of prior entry.");
+if (!((string?)navReserve.Attribute("ToolTip") ?? "").Contains("cấp / nhập vật tư", StringComparison.Ordinal))
+    throw new InvalidOperationException("Sidebar must expose supply and import material requests.");
 var requestCode = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "MaterialRequestEditorWindow.xaml.cs"));
 if (!requestCode.Contains("new MovementLine { Sku = sku, ItemName = name, Unit = unit, Quantity = quantity }", StringComparison.Ordinal) ||
     !requestCode.Contains("ManualEntryCheck.IsChecked == true", StringComparison.Ordinal))
     throw new InvalidOperationException("Manual lines must preserve name/unit/quantity independently from SKU.");
 var requestService = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "Services", "MaterialRequestService.cs"));
-if (!requestService.Contains("YC-DP", StringComparison.Ordinal))
-    throw new InvalidOperationException("Reserve requests must have a distinct document prefix.");
+if (!requestService.Contains("YC-CAP", StringComparison.Ordinal) ||
+    !requestService.Contains("YC-NHAP", StringComparison.Ordinal))
+    throw new InvalidOperationException("Supply/import requests must have distinct document prefixes.");
 Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");
