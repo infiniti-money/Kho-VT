@@ -781,6 +781,41 @@ try
     }
     Check(sampleProducts[0].TotalStock == beforeZaloStock,
           "Zalo import, date edit and pending slip prep never affect inventory balances");
+    var imageJson = """
+        [{"contractNo":"HD-777","packageNo":"K12","workType":"Xuất hàng",
+          "expectedDate":"2026-11-20","sku":"VT0001","itemName":"Vật tư",
+          "unit":"Cái","quantity":8,"note":"Đã có LX"},
+         {"contractNo":"","packageNo":"","workType":"Xuất hàng",
+          "expectedDate":"","sku":"","itemName":"","unit":"","quantity":0,"note":""}]
+        """;
+    var imageRows = ZaloScheduleImageReader.ParseJson(imageJson, "TEST-IMAGE-HASH");
+    Check(imageRows.Count == 1 && imageRows[0].ContractNo == "HD-777" &&
+          imageRows[0].ExpectedDate == "2026-11-20" &&
+          imageRows[0].Quantity == 8 &&
+          imageRows[0].ImageFingerprint == "TEST-IMAGE-HASH",
+          "Gemini image JSON is parsed as uncommitted draft, skipping unknown contract");
+    try
+    {
+        ZaloScheduleImageReader.ParseJson(
+            """[{"contractNo":"HD888","workType":"Xuất hàng","expectedDate":"20-11-??","quantity":1}]""",
+            "TEST-IMAGE-HASH");
+        throw new Exception("Invalid Zalo date was accepted.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "Gemini malformed expected date is rejected before importing plans");
+    }
+    try
+    {
+        ZaloScheduleImageReader.ParseJson(
+            """[{"contractNo":"HD999","workType":"Đã xuất hàng","quantity":1}]""",
+            "TEST-IMAGE-HASH");
+        throw new Exception("Actual completion was inferred from a Zalo schedule.");
+    }
+    catch (InvalidDataException)
+    {
+        Check(true, "Gemini cannot mark a planned date as completed inventory movement");
+    }
     Console.WriteLine($"SUCCESS {checks} Excel, Zalo planning and inventory isolation smoke checks.");
 }
 finally
