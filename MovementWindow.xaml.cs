@@ -31,7 +31,7 @@ public partial class MovementWindow : Window, IWorkspaceDirtyPage
         _lines.Select(line => new { line.Sku, line.Quantity }).ToArray());
     public MovementDraft? Draft { get; private set; }
 
-    public MovementWindow(InventoryState state, string? initialSku = null, string? initialType = null, string? initialWarehouse = null)
+    public MovementWindow(InventoryState state, string? initialSku = null, string? initialType = null, string? initialWarehouse = null, MovementDraft? editing = null)
     {
         InitializeComponent();
         _state = state;
@@ -54,6 +54,25 @@ public partial class MovementWindow : Window, IWorkspaceDirtyPage
         {
             var initialItem = state.Products.FirstOrDefault(item => item.Active && item.Sku.Equals(initialSku, StringComparison.OrdinalIgnoreCase));
             if (initialItem is not null) AddLine(initialItem, 1);
+        }
+        if (editing is not null)
+        {
+            var index = MovementTypeBox.Items.Cast<ComboBoxItem>().ToList()
+                .FindIndex(x => x.Content?.ToString() == editing.Type);
+            if (index < 0) throw new InvalidOperationException("Loại phiếu chờ không hợp lệ.");
+            MovementTypeBox.SelectedIndex = index;
+            MovementTypeBox.IsEnabled = false; // Document number retains its original type.
+            DateBox.SelectedDate = editing.Date.ToDateTime(TimeOnly.MinValue);
+            WarehouseBox.SelectedItem = editing.Warehouse;
+            ToWarehouseBox.SelectedItem = editing.ToWarehouse;
+            ReferenceBox.Text = editing.ReferenceNo;
+            PartnerBox.Text = editing.Partner;
+            OperatorBox.Text = editing.Operator;
+            NoteBox.Text = editing.Note;
+            PendingCheck.IsChecked = true;
+            PendingCheck.IsEnabled = false;
+            foreach (var line in editing.Lines)
+                _lines.Add(new MovementLine { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity });
         }
         UpdateLineCount();
         _navigationSnapshot = new WorkspaceFormSnapshot(CaptureForm);
