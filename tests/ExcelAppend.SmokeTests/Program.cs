@@ -701,7 +701,59 @@ try
         throw new Exception("Stale workbook hash unexpectedly accepted.");
     }
     catch (IOException) { Check(true, "request writer rejects stale workbook fingerprint"); }
-    Console.WriteLine($"SUCCESS {checks} Excel-only-input-column regression checks.");
+    // Page setup must remain independent of Excel and save paper settings per template.
+    var a4 = PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate());
+    Check(a4.WidthMm == 210 && a4.HeightMm == 297 &&
+          a4.TopMm == 15 && a4.RightMm == 15,
+          "print A4 portrait inherits saved legacy margin");
+    var a5 = PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "A5", Landscape = true,
+        MarginTopMm = 5, MarginBottomMm = 6, MarginLeftMm = 7, MarginRightMm = 8
+    });
+    Check(a5.WidthMm == 210 && a5.HeightMm == 148 &&
+          a5.TopMm == 5 && a5.BottomMm == 6 && a5.LeftMm == 7 && a5.RightMm == 8,
+          "print A5 landscape has independent margins and rotated dimensions");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PaperName = "A6" }).WidthMm == 105 &&
+          PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { PaperName = "Letter" }).WidthMm == 215.9,
+          "print A6 and Letter map to correct widths");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "58mm", MarginTopMm = 3, MarginBottomMm = 3,
+        MarginLeftMm = 3, MarginRightMm = 3
+    }).WidthMm == 58 &&
+          PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "80mm", MarginTopMm = 3, MarginBottomMm = 3,
+        MarginLeftMm = 3, MarginRightMm = 3
+    }).WidthMm == 80,
+          "print receipt paper formats have validated content width");
+    Check(PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+    {
+        PaperName = "Tùy chỉnh", CustomWidthMm = 130, CustomHeightMm = 230
+    }).HeightMm == 230, "print custom paper size is supported");
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate
+        {
+            PaperName = "58mm", MarginLeftMm = 20, MarginRightMm = 20
+        });
+        throw new Exception("Unexpectedly accepted narrow unusable receipt.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print rejects impossible narrow content area");
+    }
+    try
+    {
+        PrintPageSetup.Resolve(new HisaWarehouse.PrintTemplate { Copies = 0 });
+        throw new Exception("Unexpectedly accepted zero copies.");
+    }
+    catch (ArgumentException)
+    {
+        Check(true, "print requires positive copy count");
+    }
+    Console.WriteLine($"SUCCESS {checks} Excel and print page setup regression checks.");
 }
 finally
 {
