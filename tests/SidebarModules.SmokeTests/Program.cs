@@ -238,6 +238,9 @@ if (!zaloUi.Descendants().Any(el => Name(el) == "PlansSearch") ||
 if (!main.Descendants().Any(el => (string?)el.Attribute("Click") == "OpenZaloSchedules_Click"))
     throw new InvalidOperationException("Zalo planner is not accessible from the dashboard.");
 var zaloSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "MainWindow.Zalo.cs"));
+if (!cs.Contains("_pendingMovementInFlight.TryAdd(pending.Id", StringComparison.Ordinal) ||
+    !cs.Contains("_pendingMovementInFlight.TryRemove(pending.Id", StringComparison.Ordinal))
+    throw new InvalidOperationException("Double-confirmation guard missing for pending inventory movements.");
 if (!zaloSource.Contains("ZaloScheduleService.MarkPending", StringComparison.Ordinal) ||
     !zaloSource.Contains("ToPendingMovement", StringComparison.Ordinal) ||
     !zaloSource.Contains("PersistAsync(false)", StringComparison.Ordinal) ||
