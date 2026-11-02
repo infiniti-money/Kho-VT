@@ -107,8 +107,9 @@
                                 <TextBlock Text="Tỷ lệ in khi không chọn vừa trang (%)"/>
                                 <TextBox x:Name="PrintScaleBox" Text="100" Margin="0,5,0,8"/>
                                 <CheckBox x:Name="FitToPageCheck" Content="Tự co cho vừa một trang ngang" Margin="0,2,0,8"/>
-                                <CheckBox x:Name="ExcelPdfOverridesCheck" Content="Áp dụng khổ, lề và tỷ lệ này lên PDF Phiếu in từ Excel (Nhập/Xuất)"
-                                          TextWrapping="Wrap" Margin="0,2,0,9"/>
+                                <CheckBox x:Name="ExcelPdfOverridesCheck" Margin="0,2,0,9">
+                                    <TextBlock Text="Áp dụng khổ, lề và tỷ lệ lên PDF Phiếu in từ Excel (Nhập/Xuất)" TextWrapping="Wrap"/>
+                                </CheckBox>
                                 <TextBlock Text="Chỉ hỗ trợ A4/A5/A6/Letter với PDF Excel. Bỏ chọn để giữ nguyên bố cục mẫu Excel; không sửa KHO.xlsx gốc."
                                            Foreground="#7A5960" FontSize="10" TextWrapping="Wrap" Margin="0,0,0,9"/>
                                 <TextBlock Text="Số bản in"/>
