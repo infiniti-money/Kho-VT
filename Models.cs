@@ -204,6 +204,9 @@ public sealed class PrintTemplate
     public string PrinterName { get; set; } = "";
     public int Copies { get; set; } = 1;
     public bool FitToPage { get; set; } = true;
+    public int PrintScalePercent { get; set; } = 100;
+    // Opt-in: default keeps the Excel Phiếu in layout exactly as it was.
+    public bool ApplyPageSetupToExcelPdf { get; set; }
 }
 
 public sealed class ChartPayload
