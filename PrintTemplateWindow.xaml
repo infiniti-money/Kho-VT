@@ -62,7 +62,8 @@
                                 <TextBlock Text="Phông chữ"/><ComboBox x:Name="FontBox" Margin="0,5,0,10" MinHeight="35">
                                     <ComboBoxItem Content="Arial"/><ComboBoxItem Content="Segoe UI"/><ComboBoxItem Content="Times New Roman"/>
                                 </ComboBox>
-                                <TextBlock Text="Lề trang (mm)"/><TextBox x:Name="MarginBox" Margin="0,5,0,10"/>
+                                <!-- Legacy symmetric margin retained for older saved templates; use four visible margins below. -->
+                                <TextBox x:Name="MarginBox" Visibility="Collapsed"/>
                                 <TextBlock Text="Căn tiêu đề"/><ComboBox x:Name="AlignBox" Margin="0,5,0,10" MinHeight="35">
                                     <ComboBoxItem Content="Trái" Tag="Left"/><ComboBoxItem Content="Giữa" Tag="Center"/><ComboBoxItem Content="Phải" Tag="Right"/>
                                 </ComboBox>
