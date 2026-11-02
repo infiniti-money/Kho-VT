@@ -48,6 +48,8 @@ public static class PrintPageSetup
             throw new ArgumentException("Lề quá lớn so với khổ giấy; vùng in cần rộng và cao ít nhất 25 mm.");
         if (template.Copies is < 1 or > 99)
             throw new ArgumentException("Số bản in phải từ 1 đến 99.");
+        if (template.PrintScalePercent is < 30 or > 200)
+            throw new ArgumentException("Tỷ lệ in phải từ 30% đến 200%.");
         if (template.PrinterName.Length > 250)
             throw new ArgumentException("Tên máy in quá dài.");
         return d;
