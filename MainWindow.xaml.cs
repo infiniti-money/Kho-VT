@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private string _embeddedReturnPage = "dashboard";
     private Action<bool>? _confirmationCompletion;
     private readonly SemaphoreSlim _excelMovementWriteGate = new(1, 1);
+    private AiAssistantWindow? _floatingAssistant;
     private int _activeExcelCommits;
     private DateTime _lastExcelChangeNotice = DateTime.MinValue;
 
@@ -57,6 +58,11 @@ public partial class MainWindow : Window
         };
         Closed += (_, _) =>
         {
+            if (_floatingAssistant is not null)
+            {
+                _floatingAssistant.EndHandsFreeAndCancel();
+                _floatingAssistant.Close();
+            }
             if (_currentEmbeddedPage?.Source is AiAssistantWindow activeAi)
                 activeAi.EndHandsFreeAndCancel();
             if (_currentEmbeddedPage?.Source is ExcelPdfPreviewWindow activePreview)
@@ -513,9 +519,9 @@ public partial class MainWindow : Window
         // replace its content. Closing that child restores the original form.
         if (isChildOfCurrentPage)
         {
-            if (!WorkspaceNavigationPolicy.CanOpenRequestEditor(
-                    _currentEmbeddedPage?.Source is MaterialRequestsWindow, _embeddedPageStack.Count))
-                throw new InvalidOperationException("Chỉ có thể mở phiếu con từ trang Yêu cầu vật tư đang hiển thị.");
+            if (_currentEmbeddedPage?.Source is not MaterialRequestsWindow and not PendingMovementsWindow ||
+                _embeddedPageStack.Count > 0)
+                throw new InvalidOperationException("Chỉ mở trình sửa phiếu từ danh sách phiếu đang hiển thị.");
         }
         else if (!CanOpenAnotherPage()) return;
 
@@ -627,27 +633,36 @@ public partial class MainWindow : Window
     private void NavRequests_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
     private void NavReplenishment_Click(object sender, RoutedEventArgs e) =>
         RequestRootNavigation(() => _ = OpenMaterialRequestsAsync());
-    private void NavAi_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(() => OpenAiAssistant());
+    private void NavAi_Click(object sender, RoutedEventArgs e) => OpenAiAssistant();
 
-    private void HomeHandsFree_Click(object sender, RoutedEventArgs e) =>
-        RequestRootNavigation(() => OpenAiAssistant(startHandsFree: true));
+    private void HomeHandsFree_Click(object sender, RoutedEventArgs e) => OpenAiAssistant(startHandsFree: true);
 
     private void OpenAiAssistant(bool startHandsFree = false)
     {
-        if (_state is null || !CanOpenAnotherPage()) return;
+        if (_state is null) return;
+        // A modeless assistant is independent of embedded navigation: an active
+        // voice session survives changes between dashboard, inventory and slips.
+        if (_floatingAssistant is { IsVisible: true } existing)
+        {
+            existing.Activate();
+            if (startHandsFree) existing.BeginHandsFreeFromHome();
+            return;
+        }
         var assistant = new AiAssistantWindow(State)
         {
-            OpenReplenishment = () => OpenReplenishment(),
+            Owner = this,
+            OpenReplenishment = () => RequestRootNavigation(OpenReplenishment),
             ReviewCatalogEdit = ReviewAnCatalogEdit,
             BringToForeground = RestoreFromAnTray
         };
-        ShowEmbeddedPage(assistant, "An · Trợ lý kho vật tư",
-            "Giọng nữ tiếng Việt, báo cáo tồn kho, lập đề xuất duyệt và rảnh tay khi thu nhỏ");
-        // Reuse An's existing explicit microphone+Internet consent prompt.
-        // Clicking the homepage shortcut must never silently activate recording.
-        if (startHandsFree)
-            assistant.BeginHandsFreeFromHome();
+        _floatingAssistant = assistant;
+        assistant.Closed += (_, _) =>
+        {
+            assistant.EndHandsFreeAndCancel();
+            if (ReferenceEquals(_floatingAssistant, assistant)) _floatingAssistant = null;
+        };
+        assistant.Show();
+        if (startHandsFree) assistant.BeginHandsFreeFromHome();
     }
     private void NavPrintTemplates_Click(object sender, RoutedEventArgs e) => RequestRootNavigation(() => _ = OpenPrintTemplatesAsync());
 
@@ -714,7 +729,7 @@ public partial class MainWindow : Window
         {
             OpenChildPage = ShowRequestEditorChild
         };
-        ShowEmbeddedPage(page, "Phiếu yêu cầu cấp vật tư dự phòng",
+        ShowEmbeddedPage(page, "Phiếu yêu cầu vật tư",
             "Có thể chọn danh mục hoặc nhập tay; lưu/duyệt phiếu không tự thay đổi tồn kho", accepted =>
         {
             if (page.ChangesMade) _ = PersistAsync();
@@ -1305,7 +1320,38 @@ public partial class MainWindow : Window
     private async Task OpenPendingMovementsAsync()
     {
         if (!CanOpenAnotherPage()) return;
-        var page = new PendingMovementsWindow(State.PendingMovements);
+        var page = new PendingMovementsWindow(State.PendingMovements)
+        {
+            OpenEditor = pending =>
+            {
+                var draft = new MovementDraft
+                {
+                    Type = pending.Type, Date = pending.Date,
+                    Warehouse = pending.Warehouse, ToWarehouse = pending.ToWarehouse,
+                    ReferenceNo = pending.ReferenceNo, Partner = pending.Partner,
+                    Operator = pending.Operator, Note = pending.Note,
+                    Pending = true,
+                    Lines = pending.Lines.Select(line => new MovementLine
+                    { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList()
+                };
+                var editor = new MovementWindow(State, editing: draft);
+                ShowEmbeddedPage(editor, $"Chỉnh sửa {pending.DocNo}",
+                    "Chỉ cập nhật phiếu chờ, chưa ghi Excel hoặc trừ tồn.", accepted =>
+                    {
+                        if (!accepted || editor.Draft is not MovementDraft saved) return;
+                        pending.Date = saved.Date;
+                        pending.Warehouse = saved.Warehouse;
+                        pending.ToWarehouse = saved.ToWarehouse;
+                        pending.ReferenceNo = saved.ReferenceNo;
+                        pending.Partner = saved.Partner;
+                        pending.Operator = saved.Operator;
+                        pending.Note = saved.Note;
+                        pending.Lines = saved.Lines;
+                        page.RefreshRows(State.PendingMovements);
+                        _ = PersistAsync();
+                    }, isChildOfCurrentPage: true);
+            }
+        };
         ShowEmbeddedPage(page, "Phiếu chờ xác nhận", "Rà soát phiếu nhập, xuất và điều chuyển trước khi cập nhật tồn kho", accepted =>
         {
             if (accepted && page.SelectedMovement is PendingMovement pending) _ = HandlePendingMovementAsync(page, pending);
@@ -1315,6 +1361,11 @@ public partial class MainWindow : Window
 
     private async Task HandlePendingMovementAsync(PendingMovementsWindow page, PendingMovement pending)
     {
+        if (pending.Status != "Chờ xác nhận")
+        {
+            ShowToast("Phiếu đã được xử lý; không được xác nhận lần thứ hai.");
+            return;
+        }
         if (page.Action == "cancel")
         {
             pending.Status = "Đã hủy";
