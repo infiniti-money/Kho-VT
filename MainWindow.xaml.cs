@@ -1813,12 +1813,12 @@ public partial class MainWindow : Window
         AddMetadata(flow, "Kho", first.Type == "Nhập" ? first.ToWarehouse ?? first.Warehouse : first.Warehouse, first.Type == "Điều chuyển" ? "Kho nhận" : first.Type == "Nhập" ? "Nhà cung cấp" : "Nơi nhận", first.Type == "Điều chuyển" ? first.ToWarehouse ?? "" : first.Partner);
         AddMetadata(flow, "Người thực hiện", first.Operator, "Chứng từ tham chiếu", first.ReferenceNo);
         flow.Blocks.Add(new Paragraph(new Run(" ")) { Margin = new Thickness(0, 2, 0, 2) });
-        var table = CreateSlipTable(records);
+        var table = CreateSlipTable(records, template);
         PrintTemplateLayout.ApplyTableCellPadding(table, template);
         flow.Blocks.Add(table);
         flow.Blocks.Add(new Paragraph(new Run("Ghi chú: " + first.Note + (string.IsNullOrWhiteSpace(template.FooterNote) ? "" : $"\n{template.FooterNote}"))) { Margin = new Thickness(0, 12, 0, 0), FontSize = 10 });
         flow.Blocks.Add(CreateSignatureBlock(template));
-        ShowPrintDialog(flow, first.DocNo);
+        ShowPrintDialog(flow, first.DocNo, template);
     }
 
     private void PrintRequest(MaterialRequest request)
@@ -1832,12 +1832,12 @@ public partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(request.Warehouse)) AddMetadata(flow, "Kho đề xuất", request.Warehouse, "Trạng thái", request.Status);
         AddMetadata(flow, request.Type == "Yêu cầu nhập vật tư" ? "Nhà cung cấp" : "Người nhận", request.Recipient, "Người yêu cầu", request.Requester);
         var records = request.Lines.Select(line => new InventoryTransaction { Sku = line.Sku, ItemName = line.ItemName, Unit = line.Unit, Quantity = line.Quantity }).ToList();
-        var requestTable = CreateSlipTable(records);
+        var requestTable = CreateSlipTable(records, template);
         PrintTemplateLayout.ApplyTableCellPadding(requestTable, template);
         flow.Blocks.Add(requestTable);
         flow.Blocks.Add(new Paragraph(new Run($"Lý do / ghi chú: {request.Note}" + (string.IsNullOrWhiteSpace(template.FooterNote) ? "" : $"\n{template.FooterNote}"))) { Margin = new Thickness(0, 12, 0, 0), FontSize = 10 });
         flow.Blocks.Add(CreateSignatureBlock(template));
-        ShowPrintDialog(flow, request.DocNo);
+        ShowPrintDialog(flow, request.DocNo, template);
     }
 
     private static void AddTemplateHeading(FlowDocument flow, PrintTemplate template)
@@ -1863,10 +1863,17 @@ public partial class MainWindow : Window
     private static void AddMetadata(FlowDocument flow, string leftLabel, string leftValue, string rightLabel, string rightValue)
     {
         var table = new Table { CellSpacing = 0 };
-        table.Columns.Add(new TableColumn { Width = new GridLength(105) });
-        table.Columns.Add(new TableColumn { Width = new GridLength(240) });
-        table.Columns.Add(new TableColumn { Width = new GridLength(100) });
-        table.Columns.Add(new TableColumn { Width = new GridLength(250) });
+        var contentWidth = flow.PageWidth - flow.PagePadding.Left - flow.PagePadding.Right;
+        if (contentWidth < 400)
+        {
+            flow.Blocks.Add(new Paragraph(new Run(leftLabel + ": " + leftValue))
+                { Margin = new Thickness(0, 2, 0, 2) });
+            flow.Blocks.Add(new Paragraph(new Run(rightLabel + ": " + rightValue))
+                { Margin = new Thickness(0, 2, 0, 2) });
+            return;
+        }
+        foreach (var part in new[] { 0.8, 1.5, 0.8, 1.5 })
+            table.Columns.Add(new TableColumn { Width = new GridLength(part, GridUnitType.Star) });
         var group = new TableRowGroup();
         var row = new TableRow();
         row.Cells.Add(new TableCell(new Paragraph(new Run(leftLabel + ":"))) { BorderThickness = new Thickness(0), Padding = new Thickness(2) });
@@ -1876,24 +1883,35 @@ public partial class MainWindow : Window
         group.Rows.Add(row); table.RowGroups.Add(group); flow.Blocks.Add(table);
     }
 
-    private static Table CreateSlipTable(IEnumerable<InventoryTransaction> records)
+    private static Table CreateSlipTable(IEnumerable<InventoryTransaction> records, PrintTemplate template)
     {
         var table = new Table { CellSpacing = 0, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(.5) };
-        foreach (var width in new[] { 34d, 88d, 285d, 58d, 92d, 102d }) table.Columns.Add(new TableColumn { Width = new GridLength(width) });
+        var narrow = PrintPageSetup.Resolve(template).WidthMm < 120;
+        var widths = narrow ? new[] { 4d, 1d } : new[] { 0.5d, 1.2d, 3.2d, 0.9d, 1.1d, 1.1d };
+        foreach (var width in widths) table.Columns.Add(new TableColumn { Width = new GridLength(width, GridUnitType.Star) });
         var group = new TableRowGroup();
         var header = new TableRow { Background = new SolidColorBrush(Color.FromRgb(236, 241, 247)), FontWeight = FontWeights.Bold };
-        foreach (var text in new[] { "STT", "Mã hàng", "Tên vật tư", "ĐVT", "Số lượng", "Ghi chú" }) header.Cells.Add(MakeCell(text, true));
+        foreach (var text in narrow ? new[] { "Vật tư", "SL" } : new[] { "STT", "Mã hàng", "Tên vật tư", "ĐVT", "Số lượng", "Ghi chú" }) header.Cells.Add(MakeCell(text, true));
         group.Rows.Add(header);
         var i = 0;
         foreach (var item in records)
         {
             var row = new TableRow();
-            row.Cells.Add(MakeCell((++i).ToString(CultureInfo.InvariantCulture)));
-            row.Cells.Add(MakeCell(item.Sku));
-            row.Cells.Add(MakeCell(item.ItemName));
-            row.Cells.Add(MakeCell(item.Unit));
-            row.Cells.Add(MakeCell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
-            row.Cells.Add(MakeCell(""));
+            i++;
+            if (narrow)
+            {
+                row.Cells.Add(MakeCell(item.Sku + "\n" + item.ItemName));
+                row.Cells.Add(MakeCell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
+            }
+            else
+            {
+                row.Cells.Add(MakeCell(i.ToString(CultureInfo.InvariantCulture)));
+                row.Cells.Add(MakeCell(item.Sku));
+                row.Cells.Add(MakeCell(item.ItemName));
+                row.Cells.Add(MakeCell(item.Unit));
+                row.Cells.Add(MakeCell(item.Quantity is double q ? InventoryRow.FormatQuantity(q) : "—"));
+                row.Cells.Add(MakeCell(""));
+            }
             group.Rows.Add(row);
         }
         table.RowGroups.Add(group);
@@ -1956,9 +1974,9 @@ public partial class MainWindow : Window
         ShowPrintDialog(flow, "Tem mã vạch");
     }
 
-    private void ShowPrintDialog(FlowDocument flow, string description)
+    private void ShowPrintDialog(FlowDocument flow, string description, PrintTemplate? template = null)
     {
-        var page = new PrintPreviewWindow(flow, description);
+        var page = new PrintPreviewWindow(flow, description, template);
         if (_currentEmbeddedPage?.Source is MaterialRequestsWindow && _embeddedPageStack.Count == 0)
             ShowEmbeddedPage(page, "Xem trước phiếu in", "Kiểm tra bố cục rồi chọn In phiếu",
                 isChildOfCurrentPage: true);
