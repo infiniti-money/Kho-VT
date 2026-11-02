@@ -725,7 +725,8 @@ try
     zaloFirst.ExpectedDate = "2026-11-09";
     var movedZaloDate = ZaloScheduleService.Upsert(plannedRows, [zaloFirst]);
     Check(movedZaloDate.Updated == 1 && plannedRows[0].DateRevision == 1 &&
-          plannedRows[0].ExpectedDate == "2026-11-09",
+          plannedRows[0].ExpectedDate == "2026-11-09" &&
+          plannedRows[0].PreviousExpectedDates.Single() == "2026-11-07",
           "Zalo date changes update planned work with revision history");
     var sampleProducts = new List<HisaWarehouse.InventoryItem>
     {
