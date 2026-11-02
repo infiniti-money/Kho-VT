@@ -80,7 +80,12 @@ public static class ZaloScheduleService
                 unchanged++;
                 continue;
             }
-            if (old.ExpectedDate != entry.ExpectedDate) old.DateRevision++;
+            if (old.ExpectedDate != entry.ExpectedDate)
+            {
+                old.PreviousExpectedDates ??= [];
+                old.PreviousExpectedDates.Add(old.ExpectedDate);
+                old.DateRevision++;
+            }
             old.ExpectedDate = entry.ExpectedDate;
             // A pending slip is already a saved draft. Never silently alter its
             // material quantity or SKU when an image is imported again.
@@ -162,6 +167,7 @@ public static class ZaloScheduleService
         Sku = p.Sku, ItemName = p.ItemName, Unit = p.Unit,
         Quantity = p.Quantity, Note = p.Note,
         ImageFingerprint = p.ImageFingerprint, PendingDocNo = p.PendingDocNo,
-        DateRevision = p.DateRevision
+        DateRevision = p.DateRevision,
+        PreviousExpectedDates = p.PreviousExpectedDates?.ToList() ?? []
     };
 }
