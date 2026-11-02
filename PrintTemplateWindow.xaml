@@ -70,9 +70,47 @@
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="Cỡ chữ"/><TextBox x:Name="FontSizeBox" Margin="0,5,0,10"/>
                                 <TextBlock Text="Đệm ô bảng (px)"/><TextBox x:Name="CellPaddingBox" Margin="0,5,0,10"/>
-                                <TextBlock Text="Khổ giấy"/><TextBlock Text="A4 · Dọc" Foreground="#53768C" Margin="0,12,0,0" FontWeight="SemiBold"/>
+                                <TextBlock Text="Khổ giấy"/>
+                                <ComboBox x:Name="PaperBox" Margin="0,5,0,10" MinHeight="35" SelectionChanged="Paper_Changed">
+                                    <ComboBoxItem Content="A4" Tag="A4"/>
+                                    <ComboBoxItem Content="A5" Tag="A5"/>
+                                    <ComboBoxItem Content="A6" Tag="A6"/>
+                                    <ComboBoxItem Content="Letter" Tag="Letter"/>
+                                    <ComboBoxItem Content="Cuộn 58mm" Tag="58mm"/>
+                                    <ComboBoxItem Content="Cuộn 80mm" Tag="80mm"/>
+                                    <ComboBoxItem Content="Tùy chỉnh" Tag="Tùy chỉnh"/>
+                                </ComboBox>
+                                <CheckBox x:Name="LandscapeCheck" Content="Hướng ngang" Margin="0,3,0,10"/>
                             </StackPanel>
                         </Grid>
+                        <Border Background="#F5F9FD" BorderBrush="#DEE7F2" BorderThickness="1" Padding="10" CornerRadius="7" Margin="0,8,0,8">
+                            <StackPanel>
+                                <TextBlock Text="THIẾT LẬP TRANG IN" Style="{StaticResource FieldLabel}"/>
+                                <StackPanel x:Name="CustomPaperPanel" Visibility="Collapsed">
+                                    <TextBlock Text="Khổ tùy chỉnh (mm): chiều rộng / chiều cao"/>
+                                    <Grid Margin="0,4,0,8">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBox x:Name="CustomWidthBox" Grid.Column="0"/>
+                                        <TextBox x:Name="CustomHeightBox" Grid.Column="2"/>
+                                    </Grid>
+                                </StackPanel>
+                                <TextBlock Text="Lề trên / dưới / trái / phải (mm)"/>
+                                <UniformGrid Columns="4" Margin="0,5,0,10">
+                                    <TextBox x:Name="TopMarginBox" Margin="0,0,4,0" ToolTip="Trên"/>
+                                    <TextBox x:Name="BottomMarginBox" Margin="4,0,4,0" ToolTip="Dưới"/>
+                                    <TextBox x:Name="LeftMarginBox" Margin="4,0,4,0" ToolTip="Trái"/>
+                                    <TextBox x:Name="RightMarginBox" Margin="4,0,0,0" ToolTip="Phải"/>
+                                </UniformGrid>
+                                <TextBlock Text="Máy in mặc định cho mẫu này"/>
+                                <ComboBox x:Name="PrinterBox" IsEditable="True" IsTextSearchEnabled="True" MinHeight="35" Margin="0,5,0,9"/>
+                                <TextBlock Text="Số bản in"/>
+                                <TextBox x:Name="CopiesBox" Text="1" Margin="0,5,0,0"/>
+                                <Button Content="Khôi phục thiết lập trang mặc định" Click="ResetPage_Click"
+                                        Padding="10,7" Margin="0,9,0,0"/>
+                                <TextBlock Text="Máy in phải hỗ trợ khổ giấy đã chọn. Phiếu Nhập/Xuất dựa trên mẫu Excel gốc không bị thay đổi."
+                                           Foreground="#7A5960" FontSize="10" TextWrapping="Wrap" Margin="0,7,0,0"/>
+                            </StackPanel>
+                        </Border>
                         <Button Content="↻ Cập nhật bản xem trước" Click="Preview_Click"
                                 Background="#168A91" Foreground="White" Padding="14,11"
                                 BorderThickness="0" FontWeight="Bold" Margin="0,10,0,0"/>
@@ -86,11 +124,17 @@
                     BorderThickness="1" CornerRadius="13" Padding="12">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-                    <TextBlock Text="XEM TRƯỚC BẢN IN · A4" Foreground="#294E6A"
+                    <TextBlock x:Name="PreviewHeading" Text="XEM TRƯỚC BẢN IN" Foreground="#294E6A"
                                FontSize="13" FontWeight="Bold" Margin="8,3,0,12"/>
                     <Border Grid.Row="1" Background="White" BorderBrush="#CAD5E3" BorderThickness="1">
-                        <FlowDocumentScrollViewer x:Name="PreviewViewer" Zoom="75" IsToolBarVisible="False"
-                                                  VerticalScrollBarVisibility="Auto"/>
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                            <FlowDocumentPageViewer x:Name="PreviewViewer" Zoom="75" IsToolBarVisible="False"/>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,6">
+                                <Button Content="◀ Trang trước" Command="NavigationCommands.PreviousPage" CommandTarget="{Binding ElementName=PreviewViewer}" Padding="12,7" Margin="0,0,8,0"/>
+                                <Button Content="Trang sau ▶" Command="NavigationCommands.NextPage" CommandTarget="{Binding ElementName=PreviewViewer}" Padding="12,7"/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>
