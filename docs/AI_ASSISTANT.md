@@ -1,4 +1,10 @@
-# HISA — Trợ lý AI Gemini và giao diện mới
+# HISA — AN: Trợ lý xuất - nhập - tồn kho vật tư
+
+## Phạm vi nghiệp vụ hiện tại
+- AN chuyên tra cứu mã vật tư, số lượng tồn, cảnh báo thiếu/âm kho, báo cáo xuất/nhập và đối chiếu KHO.xlsx với nguồn Bravo.
+- AN giúp chuẩn bị và rà soát các đề xuất/phiếu kho, nhưng chỉ người dùng mới được xác nhận giao dịch thực tế, ghi Excel và cập nhật tồn.
+- **Không có chức năng nhập ảnh Zalo, đọc lịch hợp đồng/kiện hàng hoặc lập phiếu từ lịch Zalo.** Gemini được dùng cho trò chuyện và giọng nói của AN trong phạm vi kho.
+- Phiếu chờ thông thường được quản lý riêng, không phụ thuộc Zalo. Trường kế hoạch Zalo cũ được bỏ qua khi nạp JSON; nên sao lưu dữ liệu cũ trước khi nâng cấp.
 
 ## Bản triển khai
 - Có trang **Trợ lý AI Gemini** nằm trong thanh điều hướng và nút **✦ Trợ lý AI** ở dashboard.

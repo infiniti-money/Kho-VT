@@ -34,7 +34,7 @@
                                FontSize="11" FontWeight="Bold" Margin="0,0,0,8"/>
                     <TextBlock Text="Trò chuyện cùng An" Foreground="White"
                                FontSize="25" FontWeight="Bold"/>
-                    <TextBlock Text="An kiểm tra tồn kho, báo cáo, hỗ trợ lập phiếu và nói tiếng Việt"
+                    <TextBlock Text="An hỗ trợ xuất - nhập - tồn, đối chiếu Bravo và lập phiếu có duyệt"
                                Foreground="#D8E9FA" FontSize="12" Margin="0,7,0,0"/>
                 </StackPanel>
             </Grid>

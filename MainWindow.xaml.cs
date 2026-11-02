@@ -33,6 +33,9 @@ public partial class MainWindow : Window
     private Action<bool>? _confirmationCompletion;
     private readonly SemaphoreSlim _excelMovementWriteGate = new(1, 1);
     private AiAssistantWindow? _floatingAssistant;
+    // Protect all pending warehouse movements against duplicate confirmations.
+    // This guard is independent of any optional planning/import feature.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _pendingMovementInFlight = new(StringComparer.Ordinal);
     private int _activeExcelCommits;
     private DateTime _lastExcelChangeNotice = DateTime.MinValue;
 
@@ -520,7 +523,7 @@ public partial class MainWindow : Window
         // replace its content. Closing that child restores the original form.
         if (isChildOfCurrentPage)
         {
-            if (_currentEmbeddedPage?.Source is not MaterialRequestsWindow and not PendingMovementsWindow and not ZaloScheduleWindow ||
+            if (_currentEmbeddedPage?.Source is not MaterialRequestsWindow and not PendingMovementsWindow ||
                 _embeddedPageStack.Count > 0)
                 throw new InvalidOperationException("Chỉ mở trình sửa phiếu từ danh sách phiếu đang hiển thị.");
         }
@@ -1413,16 +1416,13 @@ public partial class MainWindow : Window
         if (page.Action == "cancel")
         {
             pending.Status = "Đã hủy";
-            var affected = State.ZaloPlans.Where(p => p.PendingDocNo == pending.DocNo).ToArray();
-            foreach (var planned in affected) planned.PendingDocNo = "";
             if (!await PersistAsync())
             {
                 pending.Status = "Chờ xác nhận";
-                foreach (var planned in affected) planned.PendingDocNo = pending.DocNo;
-                ShowToast("Không lưu được trạng thái hủy. Dữ liệu kế hoạch chưa thay đổi.");
+                ShowToast("Không lưu được trạng thái hủy phiếu chờ.");
                 return;
             }
-            ShowToast($"Đã hủy phiếu chờ {pending.DocNo}; tồn kho không thay đổi. Có thể lập lại từ lịch Zalo.");
+            ShowToast($"Đã hủy phiếu chờ {pending.DocNo}; tồn kho không thay đổi.");
             return;
         }
         var movementDraft = new MovementDraft

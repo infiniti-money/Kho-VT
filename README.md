@@ -2,6 +2,14 @@
 
 Ứng dụng Windows viết bằng C# WPF. Các biểu mẫu nghiệp vụ hiển thị ngay trong khung nội dung của cửa sổ chính, không mở cửa sổ ứng dụng con; lỗi nhập liệu được báo bằng thông báo ngay trong app. Giao diện gồm tổng quan, danh mục tồn, tìm kiếm nhanh, quản lý danh mục kho/đơn vị/bộ phận/người nhận, cảnh báo âm kho, phiếu nhập/xuất/điều chuyển có hàng chờ xác nhận, phiếu yêu cầu cấp/nhập vật tư, mẫu in chỉnh sửa được, nhật ký, báo cáo chi tiết, đối chiếu tồn thực tế từ Excel, tem mã vạch, ảnh vật tư và sao lưu. Logo được dùng trong cửa sổ và biểu tượng ứng dụng. Hai biểu đồ dùng Chart.js 4.5.1 trong WebView2; tệp Excel được đọc và tạo bằng ClosedXML.
 
+## Phạm vi trợ lý AN
+
+**AN chỉ hỗ trợ xuất - nhập - tồn kho vật tư**: tra cứu mã và tồn theo đơn vị, cảnh báo âm/thiếu kho, báo cáo giao dịch, đối chiếu tồn giữa KHO.xlsx và Bravo, hỗ trợ xem trước phiếu nhập/xuất và đề xuất để người dùng duyệt. AN có thể trò chuyện và nhận dạng giọng nói tiếng Việt qua Gemini với sự đồng ý của người dùng.
+
+**Không tích hợp lịch hoặc ảnh Zalo**. Không đọc lịch giao hàng từ ảnh, không quản lý hợp đồng/kiện hàng và không tạo phiếu chờ từ lịch Zalo. Phiếu chờ nhập/xuất thông thường vẫn hoạt động độc lập và không thay đổi tồn đến khi người dùng xác nhận nghiệp vụ thực tế.
+
+Các màn hình nghiệp vụ và quyền xác nhận giao dịch vẫn thuộc về người dùng; AI không tự ghi KHO.xlsx hoặc tự xác nhận nhập/xuất. Khi nâng cấp từ dữ liệu cũ, các trường kế hoạch Zalo không còn được nạp/lưu trong dữ liệu ứng dụng; **hãy sao lưu JSON trước khi nâng cấp** nếu cần giữ thông tin lịch sử. Những phiếu chờ đã lưu vẫn tiếp tục được quản lý như phiếu kho thông thường.
+
 ## Chạy từ mã nguồn
 
 1. Cài .NET 10 SDK cho Windows.

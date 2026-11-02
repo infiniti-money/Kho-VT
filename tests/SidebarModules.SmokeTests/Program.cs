@@ -263,30 +263,25 @@ if (!excelPdfSource.Contains("ConfigureTemporaryPrintPage(print, pageOptions)", 
 if (!cs.Contains("template?.ApplyPageSetupToExcelPdf == true", StringComparison.Ordinal) ||
     !cs.Contains("ExcelSlipPageSetup.ForTemplate(template)", StringComparison.Ordinal))
     throw new InvalidOperationException("PDF Excel không có lựa chọn áp dụng thiết lập riêng.");
-var zaloUi = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "ZaloScheduleWindow.xaml"));
-foreach (var handler in new[] { "Recognize_Click", "ImportSelected_Click", "CreatePending_Click",
-    "SelectRecognized_Click", "ClearRecognized_Click", "SelectPlans_Click", "ClearPlans_Click" })
-    if (zaloUi.Descendants().Count(el => (string?)el.Attribute("Click") == handler) != 1)
-        throw new InvalidOperationException("Zalo workflow missing select/review action: " + handler);
-if (!zaloUi.Descendants().Any(el => Name(el) == "PlansSearch") ||
-    !zaloUi.Descendants().Any(el => Name(el) == "PlansTypeFilter") ||
-    !zaloUi.Descendants().Any(el => Name(el) == "RecognizedSearch"))
-    throw new InvalidOperationException("Zalo requires filterable contracts and source-image review.");
-if (!main.Descendants().Any(el => (string?)el.Attribute("Click") == "OpenZaloSchedules_Click"))
-    throw new InvalidOperationException("Zalo planner is not accessible from the dashboard.");
-var zaloSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "MainWindow.Zalo.cs"));
+// AN is exclusively for warehouse receipts, shipments and inventory.
+if (main.Descendants().Any(el => (string?)el.Attribute("Click") == "OpenZaloSchedules_Click"))
+    throw new InvalidOperationException("Zalo dashboard entry must not exist in Kho-VT.");
+if (!main.Descendants().Any(el => (string?)el.Attribute("Click") == "NavAi_Click"))
+    throw new InvalidOperationException("AN warehouse assistant must remain accessible.");
+foreach (var retired in new[] { "MainWindow.Zalo.cs", "ZaloScheduleWindow.xaml",
+    "ZaloScheduleWindow.xaml.cs", "Services/ZaloScheduleService.cs",
+    "Services/ZaloScheduleImageReader.cs" })
+    if (File.Exists(Path.Combine(Directory.GetCurrentDirectory(), retired)))
+        throw new InvalidOperationException("Zalo module was not removed: " + retired);
+var modelsSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(), "Models.cs"));
+if (modelsSource.Contains("ZaloPlans", StringComparison.Ordinal) ||
+    modelsSource.Contains("ZaloPlannedWork", StringComparison.Ordinal))
+    throw new InvalidOperationException("Legacy Zalo plans must not be retained in warehouse state.");
 if (!cs.Contains("_pendingMovementInFlight.TryAdd(pending.Id", StringComparison.Ordinal) ||
     !cs.Contains("_pendingMovementInFlight.TryRemove(pending.Id", StringComparison.Ordinal))
     throw new InvalidOperationException("Double-confirmation guard missing for pending inventory movements.");
-if (!zaloSource.Contains("ZaloScheduleService.MarkPending", StringComparison.Ordinal) ||
-    !zaloSource.Contains("ToPendingMovement", StringComparison.Ordinal) ||
-    !zaloSource.Contains("PersistAsync(false)", StringComparison.Ordinal) ||
-    !zaloSource.Contains("reviewed.Pending", StringComparison.Ordinal))
-    throw new InvalidOperationException("Zalo preview must only stage a pending slip without stock posting.");
-var aiZaloSource = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
-    "Services", "ZaloScheduleImageReader.cs"));
-if (!aiZaloSource.Contains("inline_data", StringComparison.Ordinal) ||
-    !aiZaloSource.Contains("ParseJson", StringComparison.Ordinal) ||
-    !aiZaloSource.Contains("không đáng tin cậy", StringComparison.Ordinal))
-    throw new InvalidOperationException("Zalo image recognition must stay explicit and untrusted.");
-Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");
+var anPrompt = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "Services", "GeminiAssistantClient.cs"));
+if (!anPrompt.Contains("Chỉ hỗ trợ nghiệp vụ xuất, nhập, tồn kho vật tư", StringComparison.Ordinal))
+    throw new InvalidOperationException("AN system prompt is missing its warehouse-only scope.");
+Console.WriteLine("PASS: warehouse-only AN, no Zalo, pending guard, Bravo A/B/C/L and existing navigation.");

@@ -20,7 +20,6 @@ public sealed class InventoryState
     public ObservableCollection<InventoryTransaction> Transactions { get; set; } = [];
     public ObservableCollection<PendingMovement> PendingMovements { get; set; } = [];
     public ObservableCollection<MaterialRequest> MaterialRequests { get; set; } = [];
-    public ObservableCollection<ZaloPlannedWork> ZaloPlans { get; set; } = [];
     public List<PrintTemplate> PrintTemplates { get; set; } = [];
     public bool PrintTemplatesConfigured { get; set; }
     public string PrimaryExcelPath { get; set; } = "";
@@ -177,27 +176,6 @@ public sealed class MaterialRequest
     public List<MovementLine> Lines { get; set; } = [];
 }
 
-/// <summary>
-/// Planned logistics from an image is NOT a warehouse stock transaction.
-/// Only an explicit confirmed movement may change inventory.
-/// </summary>
-public sealed class ZaloPlannedWork
-{
-    public string Id { get; set; } = Guid.NewGuid().ToString("N");
-    public string ContractNo { get; set; } = "";
-    public string PackageNo { get; set; } = "";
-    public string WorkType { get; set; } = "Xuất hàng";
-    public string ExpectedDate { get; set; } = ""; // ISO yyyy-MM-dd, optional
-    public string Sku { get; set; } = "";
-    public string ItemName { get; set; } = "";
-    public string Unit { get; set; } = "";
-    public double Quantity { get; set; }
-    public string Note { get; set; } = "";
-    public string ImageFingerprint { get; set; } = "";
-    public string PendingDocNo { get; set; } = "";
-    public int DateRevision { get; set; }
-    public List<string> PreviousExpectedDates { get; set; } = [];
-}
 
 public sealed class PrintTemplate
 {
