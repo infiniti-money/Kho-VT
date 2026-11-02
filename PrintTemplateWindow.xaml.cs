@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Printing;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -33,7 +34,17 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
                 ReadNumber(FontSizeBox, "cỡ chữ") == _current.FontSize &&
                 ReadNumber(MarginBox, "lề trang") == _current.MarginMm &&
                 ReadNumber(CellPaddingBox, "đệm ô") == _current.CellPadding &&
-                ((AlignBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Center") == _current.HeaderAlignment;
+                ((AlignBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Center") == _current.HeaderAlignment &&
+                CurrentPaperName() == _current.PaperName &&
+                LandscapeCheck.IsChecked == _current.Landscape &&
+                ReadNumber(CustomWidthBox, "chiều rộng") == _current.CustomWidthMm &&
+                ReadNumber(CustomHeightBox, "chiều cao") == _current.CustomHeightMm &&
+                ReadNumber(TopMarginBox, "lề trên") == (_current.MarginTopMm ?? _current.MarginMm) &&
+                ReadNumber(BottomMarginBox, "lề dưới") == (_current.MarginBottomMm ?? _current.MarginMm) &&
+                ReadNumber(LeftMarginBox, "lề trái") == (_current.MarginLeftMm ?? _current.MarginMm) &&
+                ReadNumber(RightMarginBox, "lề phải") == (_current.MarginRightMm ?? _current.MarginMm) &&
+                (PrinterBox.Text?.Trim() ?? "") == _current.PrinterName &&
+                ReadCopies() == _current.Copies;
         }
         catch (ArgumentException) { return false; } // Invalid uncommitted numeric edit.
     }
@@ -43,6 +54,13 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
     {
         InitializeComponent();
         _templates = templates.Select(Clone).ToList();
+        try
+        {
+            using var server = new LocalPrintServer();
+            PrinterBox.ItemsSource = server.GetPrintQueues()
+                .Select(queue => queue.FullName).OrderBy(x => x).ToArray();
+        }
+        catch (Exception) { EditorStatus.Text = "Không tìm thấy máy in Windows. Có thể tiếp tục thiết kế mẫu và xem trước."; }
         RefreshTypes(_templates.FirstOrDefault()?.Type);
         _originalTemplates = JsonSerializer.Serialize(_templates);
     }
@@ -61,7 +79,18 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         FontSize = value.FontSize,
         MarginMm = value.MarginMm,
         CellPadding = value.CellPadding,
-        HeaderAlignment = value.HeaderAlignment
+        HeaderAlignment = value.HeaderAlignment,
+        PaperName = value.PaperName,
+        Landscape = value.Landscape,
+        CustomWidthMm = value.CustomWidthMm,
+        CustomHeightMm = value.CustomHeightMm,
+        MarginTopMm = value.MarginTopMm,
+        MarginBottomMm = value.MarginBottomMm,
+        MarginLeftMm = value.MarginLeftMm,
+        MarginRightMm = value.MarginRightMm,
+        PrinterName = value.PrinterName,
+        Copies = value.Copies,
+        FitToPage = value.FitToPage
     };
 
     private void RefreshTypes(string? selected)
@@ -87,6 +116,13 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
             input.Clear();
         FontBox.SelectedIndex = 0;
         AlignBox.SelectedIndex = 1;
+        PaperBox.SelectedIndex = 0;
+        LandscapeCheck.IsChecked = false;
+        CustomWidthBox.Text = "210";
+        CustomHeightBox.Text = "297";
+        foreach (var box in new[] { TopMarginBox, BottomMarginBox, LeftMarginBox, RightMarginBox }) box.Text = "15";
+        PrinterBox.Text = "";
+        CopiesBox.Text = "1";
     }
 
     private void Type_Changed(object sender, SelectionChangedEventArgs e)
@@ -125,6 +161,18 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         FontSizeBox.Text = _current.FontSize.ToString(CultureInfo.InvariantCulture);
         MarginBox.Text = _current.MarginMm.ToString(CultureInfo.InvariantCulture);
         CellPaddingBox.Text = _current.CellPadding.ToString(CultureInfo.InvariantCulture);
+        PaperBox.SelectedIndex = Math.Max(0, PaperBox.Items.Cast<ComboBoxItem>().ToList()
+            .FindIndex(x => (string?)x.Tag == _current.PaperName));
+        LandscapeCheck.IsChecked = _current.Landscape;
+        CustomWidthBox.Text = _current.CustomWidthMm.ToString(CultureInfo.InvariantCulture);
+        CustomHeightBox.Text = _current.CustomHeightMm.ToString(CultureInfo.InvariantCulture);
+        TopMarginBox.Text = (_current.MarginTopMm ?? _current.MarginMm).ToString(CultureInfo.InvariantCulture);
+        BottomMarginBox.Text = (_current.MarginBottomMm ?? _current.MarginMm).ToString(CultureInfo.InvariantCulture);
+        LeftMarginBox.Text = (_current.MarginLeftMm ?? _current.MarginMm).ToString(CultureInfo.InvariantCulture);
+        RightMarginBox.Text = (_current.MarginRightMm ?? _current.MarginMm).ToString(CultureInfo.InvariantCulture);
+        PrinterBox.Text = _current.PrinterName;
+        CopiesBox.Text = _current.Copies.ToString(CultureInfo.InvariantCulture);
+        CustomPaperPanel.Visibility = _current.PaperName == "Tùy chỉnh" ? Visibility.Visible : Visibility.Collapsed;
         FontBox.SelectedIndex = _current.FontName switch
         {
             "Segoe UI" => 1,
@@ -150,6 +198,46 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         throw new ArgumentException($"Giá trị {field} phải là số.");
     }
 
+    private string CurrentPaperName() => (PaperBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "A4";
+
+    private int ReadCopies()
+    {
+        if (!int.TryParse(CopiesBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var copies))
+            throw new ArgumentException("Số bản in phải là số nguyên.");
+        return copies;
+    }
+
+    private void Paper_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || CustomPaperPanel is null || PaperBox.SelectedItem is null) return;
+        var paper = CurrentPaperName();
+        CustomPaperPanel.Visibility = paper == "Tùy chỉnh" ? Visibility.Visible : Visibility.Collapsed;
+        if (paper is "58mm" or "80mm" &&
+            new[] { TopMarginBox, BottomMarginBox, LeftMarginBox, RightMarginBox }
+                .All(input => input.Text.Trim() == "15"))
+            foreach (var box in new[] { TopMarginBox, BottomMarginBox, LeftMarginBox, RightMarginBox })
+                box.Text = "3";
+    }
+
+    private void ResetPage_Click(object sender, RoutedEventArgs e)
+    {
+        _loading = true;
+        try
+        {
+            PaperBox.SelectedIndex = 0;
+            LandscapeCheck.IsChecked = false;
+            CustomWidthBox.Text = "210";
+            CustomHeightBox.Text = "297";
+            foreach (var box in new[] { TopMarginBox, BottomMarginBox, LeftMarginBox, RightMarginBox })
+                box.Text = "15";
+            PrinterBox.Text = "";
+            CopiesBox.Text = "1";
+            CustomPaperPanel.Visibility = Visibility.Collapsed;
+        }
+        finally { _loading = false; }
+        Preview_Click(sender, e);
+    }
+
     private void SaveEditor()
     {
         if (_loading || _current is null) return;
@@ -166,6 +254,16 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         next.MarginMm = ReadNumber(MarginBox, "lề trang");
         next.CellPadding = ReadNumber(CellPaddingBox, "đệm ô");
         next.HeaderAlignment = (AlignBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Center";
+        next.PaperName = CurrentPaperName();
+        next.Landscape = LandscapeCheck.IsChecked == true;
+        next.CustomWidthMm = ReadNumber(CustomWidthBox, "chiều rộng");
+        next.CustomHeightMm = ReadNumber(CustomHeightBox, "chiều cao");
+        next.MarginTopMm = ReadNumber(TopMarginBox, "lề trên");
+        next.MarginBottomMm = ReadNumber(BottomMarginBox, "lề dưới");
+        next.MarginLeftMm = ReadNumber(LeftMarginBox, "lề trái");
+        next.MarginRightMm = ReadNumber(RightMarginBox, "lề phải");
+        next.PrinterName = PrinterBox.Text?.Trim() ?? "";
+        next.Copies = ReadCopies();
         PrintTemplateLayout.Validate(next);
         var index = _templates.IndexOf(_current);
         _templates[index] = next;
@@ -178,7 +276,9 @@ public partial class PrintTemplateWindow : Window, IWorkspaceDirtyPage
         try
         {
             PreviewViewer.Document = PrintTemplateLayout.Preview(_current);
-            EditorStatus.Text = "Bản xem trước sử dụng dữ liệu minh họa, chưa in và chưa ghi vào Excel.";
+            var dimension = PrintPageSetup.Resolve(_current);
+            PreviewHeading.Text = $"XEM TRƯỚC · {_current.PaperName} · {(_current.Landscape ? "NGANG" : "DỌC")} · {dimension.WidthMm:0.#} × {dimension.HeightMm:0.#} mm";
+            EditorStatus.Text = "Bản xem trước phân trang bằng đúng kích thước đã chọn; chưa in và chưa ghi vào Excel.";
         }
         catch (Exception ex)
         {
