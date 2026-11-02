@@ -639,9 +639,9 @@ try
     File.Delete(file);
     BuildWorkbook();
     var inventoryBeforeRequest = new Dictionary<string, byte[]>();
-    using (var original = ZipFile.OpenRead(file))
+    using (var originalRequestZip = ZipFile.OpenRead(file))
     {
-        foreach (var entry in original.Entries.Where(x =>
+        foreach (var entry in originalRequestZip.Entries.Where(x =>
             x.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal) ||
             x.FullName.StartsWith("xl/charts/", StringComparison.Ordinal)))
         {
