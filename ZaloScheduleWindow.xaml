@@ -1,0 +1,112 @@
+<Window x:Class="HisaWarehouse.ZaloScheduleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Lịch Zalo · Tổng hợp hợp đồng"
+        Width="1280" Height="810" MinWidth="980" MinHeight="650"
+        Background="#F0F5FA" FontFamily="Segoe UI">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,15">
+            <TextBlock Text="LỊCH ZALO · TỔNG HỢP HỢP ĐỒNG"
+                       FontSize="20" FontWeight="Bold" Foreground="#153951"/>
+            <TextBlock Text="Dự kiến là kế hoạch, KHÔNG phải đã nhập/xuất. Chỉ xác nhận phiếu nhập/xuất thực tế mới thay đổi tồn kho."
+                       Margin="0,6,0,0" Foreground="#975C21" TextWrapping="Wrap"/>
+        </StackPanel>
+        <TabControl x:Name="WorkTabs" Grid.Row="1">
+            <TabItem Header="1 · Quét ảnh và rà soát">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Button Content="Chọn ảnh Zalo · gửi tới Gemini để nhận diện" Click="Recognize_Click"
+                                Padding="14,9" Margin="0,0,12,0" Background="#157F86" Foreground="White"/>
+                        <Button Content="Thêm dòng thủ công" Click="AddManual_Click" Padding="12,9"/>
+                        <TextBlock x:Name="RecognizedCount" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,9">
+                        <TextBox x:Name="RecognizedSearch" Width="230" Margin="0,0,8,0"
+                                 ToolTip="Tìm số hợp đồng, kiện, SKU" TextChanged="RecognizedFilter_Changed"/>
+                        <ComboBox x:Name="RecognizedTypeFilter" Width="170" SelectionChanged="RecognizedFilter_Changed">
+                            <ComboBoxItem Content="Tất cả công việc" IsSelected="True"/>
+                            <ComboBoxItem Content="Container về kho"/>
+                            <ComboBoxItem Content="Xuất hàng"/>
+                        </ComboBox>
+                        <Button Content="Chọn tất cả đang lọc" Click="SelectRecognized_Click" Padding="10,7" Margin="12,0,6,0"/>
+                        <Button Content="Bỏ chọn đang lọc" Click="ClearRecognized_Click" Padding="10,7"/>
+                    </StackPanel>
+                    <DataGrid x:Name="RecognizedGrid" Grid.Row="2" CanUserAddRows="False"
+                              AutoGenerateColumns="False" SelectionMode="Extended"
+                              HeadersVisibility="Column" RowHeight="39">
+                        <DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header="Chọn" Binding="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="52"/>
+                            <DataGridTextColumn Header="Số hợp đồng" Binding="{Binding Plan.ContractNo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                            <DataGridTextColumn Header="Kiện / Container" Binding="{Binding Plan.PackageNo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="130"/>
+                            <DataGridTemplateColumn Header="Công việc" Width="145">
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                    <ComboBox SelectedValuePath="Content" SelectedValue="{Binding Plan.WorkType, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                        <ComboBoxItem Content="Container về kho"/><ComboBoxItem Content="Xuất hàng"/>
+                                    </ComboBox>
+                                </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Ngày dự kiến" Binding="{Binding Plan.ExpectedDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="110"/>
+                            <DataGridTextColumn Header="SKU" Binding="{Binding Plan.Sku, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="105"/>
+                            <DataGridTextColumn Header="Tên vật tư" Binding="{Binding Plan.ItemName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="170"/>
+                            <DataGridTextColumn Header="ĐVT" Binding="{Binding Plan.Unit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="64"/>
+                            <DataGridTextColumn Header="Số lượng" Binding="{Binding Plan.Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="82"/>
+                            <DataGridTextColumn Header="Ghi chú" Binding="{Binding Plan.Note, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+            <TabItem Header="2 · Tổng hợp và lên phiếu">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,9">
+                        <TextBox x:Name="PlansSearch" Width="240" ToolTip="Tìm theo hợp đồng / kiện / vật tư"
+                                 TextChanged="PlansFilter_Changed" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="PlansTypeFilter" Width="170" SelectionChanged="PlansFilter_Changed">
+                            <ComboBoxItem Content="Tất cả công việc" IsSelected="True"/>
+                            <ComboBoxItem Content="Container về kho"/>
+                            <ComboBoxItem Content="Xuất hàng"/>
+                        </ComboBox>
+                        <Button Content="Chọn tất cả đang lọc" Click="SelectPlans_Click" Margin="12,0,6,0" Padding="10,7"/>
+                        <Button Content="Bỏ chọn đang lọc" Click="ClearPlans_Click" Padding="10,7"/>
+                        <TextBlock x:Name="PlansCount" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                    </StackPanel>
+                    <DataGrid x:Name="PlansGrid" Grid.Row="1" IsReadOnly="True" CanUserAddRows="False"
+                              AutoGenerateColumns="False" RowHeight="38">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Header="Chọn" Width="55">
+                                <DataGridTemplateColumn.CellTemplate><DataTemplate>
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                </DataTemplate></DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Hợp đồng" Binding="{Binding Plan.ContractNo}" Width="120"/>
+                            <DataGridTextColumn Header="Kiện" Binding="{Binding Plan.PackageNo}" Width="115"/>
+                            <DataGridTextColumn Header="Công việc" Binding="{Binding Plan.WorkType}" Width="140"/>
+                            <DataGridTextColumn Header="Ngày dự kiến" Binding="{Binding Plan.ExpectedDate}" Width="110"/>
+                            <DataGridTextColumn Header="SKU" Binding="{Binding Plan.Sku}" Width="90"/>
+                            <DataGridTextColumn Header="Tên vật tư" Binding="{Binding Plan.ItemName}" Width="160"/>
+                            <DataGridTextColumn Header="SL" Binding="{Binding Plan.Quantity}" Width="75"/>
+                            <DataGridTextColumn Header="Đã lên phiếu chờ" Binding="{Binding Plan.PendingDocNo}" Width="130"/>
+                            <DataGridTextColumn Header="Sửa lịch" Binding="{Binding Plan.DateRevision}" Width="75"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+        <Grid Grid.Row="2" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <TextBlock x:Name="StatusText" Foreground="#38576A" TextWrapping="Wrap" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="Nhập hợp đồng đã chọn vào Tổng hợp"
+                    Click="ImportSelected_Click" Padding="14,10" Margin="0,0,9,0"/>
+            <Button Grid.Column="2" Content="Lên phiếu chờ · Xem/sửa trước"
+                    Click="CreatePending_Click" Padding="14,10" Margin="0,0,9,0"
+                    Background="#157F86" Foreground="White"/>
+            <Button Grid.Column="3" Content="Đóng" Click="Close_Click" Padding="14,10"/>
+        </Grid>
+    </Grid>
+</Window>
