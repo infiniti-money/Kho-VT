@@ -6,6 +6,8 @@ namespace HisaWarehouse;
 
 public partial class MainWindow
 {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _pendingMovementInFlight = new(StringComparer.Ordinal);
+
     private void OpenZaloSchedules_Click(object sender, RoutedEventArgs e) =>
         RequestRootNavigation(OpenZaloSchedules);
 
