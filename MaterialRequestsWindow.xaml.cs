@@ -26,6 +26,7 @@ public partial class MaterialRequestsWindow : Window
     public MaterialRequest? SelectedRequest { get; private set; }
     public string Action { get; private set; } = "";
     public Action<Window, Action<bool>>? OpenChildPage { get; set; }
+    public Func<Task<bool>>? PersistRequestsAsync { get; set; }
 
     public MaterialRequestsWindow(InventoryState state)
     {
@@ -58,9 +59,15 @@ public partial class MaterialRequestsWindow : Window
         else this.NotifyInline("Không thể mở biểu mẫu vì trang chưa được kết nối với cửa sổ chính.");
     }
 
-    private void SaveRequest(MaterialRequest request, string type)
+    private async void SaveRequest(MaterialRequest request, string type)
     {
         MaterialRequestService.Add(_state, request);
+        if (PersistRequestsAsync is null || !await PersistRequestsAsync())
+        {
+            _state.MaterialRequests.Remove(request);
+            this.NotifyInline("Không lưu được phiếu vào Excel; hãy kiểm tra file KHO.xlsx.");
+            return;
+        }
         ChangesMade = true;
         RefreshRows();
         RequestsGrid.SelectedItem = (RequestsGrid.ItemsSource as IEnumerable<MaterialRequestRow>)?.FirstOrDefault(row => row.Request.Id == request.Id);
@@ -68,7 +75,7 @@ public partial class MaterialRequestsWindow : Window
 
     private MaterialRequest? GetSelected() => (RequestsGrid.SelectedItem as MaterialRequestRow)?.Request;
 
-    private void Approve_Click(object sender, RoutedEventArgs e)
+    private async void Approve_Click(object sender, RoutedEventArgs e)
     {
         var request = GetSelected();
         if (request is null) { this.NotifyInline("Chọn một yêu cầu để duyệt."); return; }
@@ -85,17 +92,31 @@ public partial class MaterialRequestsWindow : Window
             "An · Xác nhận duyệt phiếu", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No);
         if (approval != MessageBoxResult.Yes) return;
+        var previous = request.Status;
         request.Status = "Đã duyệt";
+        if (PersistRequestsAsync is null || !await PersistRequestsAsync())
+        {
+            request.Status = previous;
+            this.NotifyInline("Chưa lưu được trạng thái duyệt vào Excel.");
+            return;
+        }
         ChangesMade = true;
         RefreshRows();
     }
 
-    private void Complete_Click(object sender, RoutedEventArgs e)
+    private async void Complete_Click(object sender, RoutedEventArgs e)
     {
         var request = GetSelected();
         if (request is null) { this.NotifyInline("Chọn một yêu cầu."); return; }
         if (request.Status == "Hoàn thành") return;
+        var previous = request.Status;
         request.Status = "Hoàn thành";
+        if (PersistRequestsAsync is null || !await PersistRequestsAsync())
+        {
+            request.Status = previous;
+            this.NotifyInline("Chưa lưu được trạng thái hoàn thành vào Excel.");
+            return;
+        }
         ChangesMade = true;
         RefreshRows();
     }

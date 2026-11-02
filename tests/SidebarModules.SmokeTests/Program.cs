@@ -200,4 +200,30 @@ var requestService = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory
 if (!requestService.Contains("YC-CAP", StringComparison.Ordinal) ||
     !requestService.Contains("YC-NHAP", StringComparison.Ordinal))
     throw new InvalidOperationException("Supply/import requests must have distinct document prefixes.");
+// Interactive pending slip editing must stay separate from stock posting.
+var pendingUi = XDocument.Load(Path.Combine(Directory.GetCurrentDirectory(), "PendingMovementsWindow.xaml"));
+if (pendingUi.Descendants().Count(el => (string?)el.Attribute("Click") == "EditPending_Click") != 1)
+    throw new InvalidOperationException("Pending slips must expose an edit action.");
+if (!cs.Contains("new MovementWindow(State, editing: draft)", StringComparison.Ordinal) ||
+    !cs.Contains("isChildOfCurrentPage: true", StringComparison.Ordinal))
+    throw new InvalidOperationException("Pending edit form is not hosted as a child page.");
+
+var openAi = cs.IndexOf("private void OpenAiAssistant(bool startHandsFree", StringComparison.Ordinal);
+var nextAiMethod = cs.IndexOf("private void NavPrintTemplates_Click", openAi, StringComparison.Ordinal);
+if (openAi < 0 || nextAiMethod <= openAi)
+    throw new InvalidOperationException("Floating AI assistant handler is missing.");
+var aiBody = cs[openAi..nextAiMethod];
+if (!aiBody.Contains("assistant.Show();", StringComparison.Ordinal) ||
+    aiBody.Contains("ShowEmbeddedPage(", StringComparison.Ordinal))
+    throw new InvalidOperationException("AI assistant must open modelessly without navigating main workspace.");
+
+var settings = main.Descendants().Single(el => Name(el) == "SettingsPage");
+if (!settings.Descendants().Any(el => Name(el) == "SettingsRememberMicrophone") ||
+    !settings.Descendants().Any(el => Name(el) == "SettingsMicrophoneBox"))
+    throw new InvalidOperationException("Microphone privacy and device preferences must appear in Settings.");
+var consent = File.ReadAllText(Path.Combine(Directory.GetCurrentDirectory(),
+    "Services", "MicrophoneConsentPreference.cs"));
+if (!consent.Contains("SpecialFolder.LocalApplicationData", StringComparison.Ordinal))
+    throw new InvalidOperationException("Microphone preference must survive installation updates.");
+
 Console.WriteLine("PASS: dashboard, Bravo A/B/C/L, signed balances, An two-file read consent and existing navigation.");

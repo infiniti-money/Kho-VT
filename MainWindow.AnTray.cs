@@ -17,7 +17,7 @@ public partial class MainWindow
     private void OnAnWindowStateChanged(object? sender, EventArgs e)
     {
         if (WindowState != System.Windows.WindowState.Minimized ||
-            _currentEmbeddedPage?.Source is not AiAssistantWindow an) return;
+            _floatingAssistant is not AiAssistantWindow an) return;
 
         // Background mic is opt-in. A normal minimize cannot silently leave
         // the voice session recording without the explicit tray toggle.
@@ -44,7 +44,7 @@ public partial class MainWindow
                 menu.Items.Add("Mở HISA", null, (_, _) => Dispatcher.BeginInvoke(RestoreFromAnTray));
                 menu.Items.Add("Dừng An và mở HISA", null, (_, _) => Dispatcher.BeginInvoke(() =>
                 {
-                    if (_currentEmbeddedPage?.Source is AiAssistantWindow current)
+                    if (_floatingAssistant is AiAssistantWindow current)
                         current.EndHandsFreeAndCancel();
                     RestoreFromAnTray();
                 }));
@@ -62,7 +62,7 @@ public partial class MainWindow
         {
             // A tray failure must not trap the application in an invisible state
             // or leave the microphone listening without a visible stop control.
-            if (_currentEmbeddedPage?.Source is AiAssistantWindow current)
+            if (_floatingAssistant is AiAssistantWindow current)
                 current.EndHandsFreeAndCancel();
             Show();
             WindowState = System.Windows.WindowState.Normal;

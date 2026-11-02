@@ -11,6 +11,7 @@
     <Compile Include="../../Services/ImageDataService.cs" Link="ImageDataService.cs" />
     <Compile Include="../../Services/PrimaryWorkbookReconciler.cs" Link="PrimaryWorkbookReconciler.cs" />
     <Compile Include="../../Services/MaterialRequestService.cs" Link="MaterialRequestService.cs" />
+    <Compile Include="../../Services/MaterialRequestWorkbookWriter.cs" Link="MaterialRequestWorkbookWriter.cs" />
     <Compile Include="../../Services/AnCatalogEditService.cs" Link="AnCatalogEditService.cs" />
     <Compile Include="../../Services/PrimaryFormulaRecovery.cs" Link="PrimaryFormulaRecovery.cs" />
     <Compile Include="../../Services/AutomaticFormulaRecovery.cs" Link="AutomaticFormulaRecovery.cs" />

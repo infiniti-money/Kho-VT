@@ -56,7 +56,7 @@ public partial class AiAssistantWindow
             return;
         }
 
-        var response = MessageBox.Show(Application.Current.MainWindow,
+        var response = MicrophoneConsentPreference.RememberAllowed ? MessageBoxResult.Yes : MessageBox.Show(Application.Current.MainWindow,
             "BẬT RẢNH TAY HISA?\n\n" +
             "Micro sẽ được mở trong phiên rảnh tay. Các lượt tiếng nói sẽ được tự thu " +
             "sau khoảng lặng 1,2 giây (tối đa 25 giây), gửi âm thanh qua Internet " +

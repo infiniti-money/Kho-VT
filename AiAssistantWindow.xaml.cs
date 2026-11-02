@@ -416,7 +416,8 @@ public partial class AiAssistantWindow : Window
         EndHandsFreeAndCancel();
         _speaker?.Dispose();
         _speaker = null;
-        this.CompleteEmbedded(false);
+        if (Tag is Action<bool>) this.CompleteEmbedded(false);
+        else Close();
         return true;
     }
 }
